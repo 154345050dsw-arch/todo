@@ -1,0 +1,375 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --app-bg: #f7f7f5;
+  --app-panel: #ffffff;
+  --app-panel-soft: #f3f4f6;
+  --app-border: #e5e7eb;
+  --app-text: #111827;
+  --app-muted: #6b7280;
+  --app-subtle: #9ca3af;
+  --app-primary: #2563eb;
+  --app-primary-strong: #1e4fd8;
+  --app-title-font: 'Source Serif 4', 'Noto Serif SC', Georgia, serif;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --shadow-1: 0 6px 16px -4px rgba(17, 24, 39, 0.06), 0 2px 4px -2px rgba(17, 24, 39, 0.04);
+  --shadow-2: 0 20px 40px -12px rgba(17, 24, 39, 0.14), 0 8px 16px -8px rgba(17, 24, 39, 0.08);
+  --app-shadow: var(--shadow-2);
+  --ring-focus: 0 0 0 3px rgba(37, 99, 235, 0.18);
+  color: #171717;
+  background: #fbfbf9;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html.dark {
+  --app-bg: #0d0d0d;
+  --app-panel: #18181b;
+  --app-panel-soft: #27272a;
+  --app-border: rgba(255, 255, 255, 0.08);
+  --app-text: #f4f4f5;
+  --app-muted: #a1a1aa;
+  --app-subtle: #71717a;
+  --app-primary: #7aa7f8;
+  --app-primary-strong: #6b9cf0;
+  --app-hover: rgba(255, 255, 255, 0.05);
+  --app-active: rgba(96, 165, 250, 0.10);
+  --shadow-1: 0 6px 16px -4px rgba(0, 0, 0, 0.24), 0 2px 4px -2px rgba(0, 0, 0, 0.16);
+  --shadow-2: 0 20px 40px -12px rgba(0, 0, 0, 0.48), 0 8px 16px -8px rgba(0, 0, 0, 0.32);
+  --app-shadow: var(--shadow-2);
+  --ring-focus: 0 0 0 3px rgba(122, 167, 248, 0.24);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body:not(.app-shell) {
+  margin: 0;
+  min-width: 320px;
+  background:
+    radial-gradient(circle at 12% 8%, rgba(0, 127, 115, 0.08), transparent 32rem),
+    radial-gradient(circle at 88% 12%, rgba(224, 90, 71, 0.08), transparent 28rem),
+    #fbfbf9;
+}
+
+body.app-shell {
+  margin: 0;
+  min-width: 320px;
+  background: var(--app-bg);
+}
+
+html.dark body {
+  background: #0d0d0d;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus,
+a:focus {
+  outline: none;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--app-primary);
+  outline-offset: 2px;
+}
+
+.task-search-input:focus-visible {
+  outline: none;
+}
+
+.app-date-input {
+  color-scheme: light;
+}
+
+html.dark .app-date-input {
+  color-scheme: dark;
+}
+
+.app-date-input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.task-rich-text:empty::before {
+  color: var(--app-subtle);
+  content: attr(data-placeholder);
+  pointer-events: none;
+}
+
+.task-rich-text p,
+.task-rich-content p {
+  margin: 0 0 0.625rem;
+}
+
+.task-rich-text ul,
+.task-rich-content ul {
+  margin: 0.375rem 0 0.75rem 1.25rem;
+  list-style: disc;
+}
+
+.task-rich-text ol,
+.task-rich-content ol {
+  margin: 0.375rem 0 0.75rem 1.25rem;
+  list-style: decimal;
+}
+
+.task-rich-text a,
+.task-rich-content a {
+  color: var(--app-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.task-rich-text img,
+.task-rich-content img {
+  display: block;
+  max-width: 100%;
+  max-height: 360px;
+  margin: 0.75rem 0;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+}
+
+::selection {
+  color: #fbfbf9;
+  background: #171717;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(17, 24, 39, 0.08);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(17, 24, 39, 0.15);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Badge animations */
+.badge-pulse {
+  animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* Row selection indicator */
+.row-selected-left {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--app-primary);
+  border-radius: 0 2px 2px 0;
+}
+
+/* Nav item selected indicator */
+.nav-selected-left {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 20px;
+  width: 3px;
+  background: var(--app-primary);
+  border-radius: 0 3px 3px 0;
+}
+
+/* Grain overlay */
+.grain {
+  position: relative;
+}
+
+.grain::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: '';
+  opacity: 0.28;
+  background-image:
+    linear-gradient(rgba(23, 23, 23, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(23, 23, 23, 0.03) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: linear-gradient(to bottom, black 0%, transparent 84%);
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 700ms ease,
+    transform 700ms ease;
+}
+
+.reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.hero-enter {
+  animation: hero-enter 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.hero-enter-delay {
+  animation: hero-enter 900ms cubic-bezier(0.16, 1, 0.3, 1) 140ms both;
+}
+
+.visual-float {
+  animation: visual-float 7s ease-in-out infinite;
+}
+
+.status-pulse {
+  animation: status-pulse 2.8s ease-in-out infinite;
+}
+
+.flow-line {
+  stroke-dasharray: 9 10;
+  animation: flow-dash 14s linear infinite;
+}
+
+@keyframes hero-enter {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes visual-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(0, 127, 115, 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(0, 127, 115, 0);
+  }
+}
+
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -160;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .reveal {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Collapsible section animation */
+.animate-slideDown {
+  animation: slideDown 200ms ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modal popup animation */
+.animate-modalPop {
+  animation: modalPop 250ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Deadline urgency pulse */
+.deadline-critical {
+  animation: urgency-pulse 2s ease-in-out infinite;
+}
+
+@keyframes urgency-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.75; }
+}
+
+/* Task detail content typography */
+.task-detail-content {
+  font-family: var(--app-body-font);
+  line-height: 1.75;
+}
+
+.task-detail-content p:last-child {
+  margin-bottom: 0;
+}

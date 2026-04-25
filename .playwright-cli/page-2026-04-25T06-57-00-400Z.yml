@@ -1,0 +1,161 @@
+- generic [ref=e28]:
+  - complementary [ref=e29]:
+    - link "F FlowDesk 任务流转工作区" [ref=e31] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e32]: F
+      - generic [ref=e33]:
+        - generic [ref=e34]: FlowDesk
+        - generic [ref=e35]: 任务流转工作区
+    - generic [ref=e36]:
+      - button "我的待办 1" [ref=e37] [cursor=pointer]:
+        - generic [ref=e39]:
+          - img [ref=e40]
+          - text: 我的待办
+        - generic [ref=e43]: "1"
+      - button "我创建的 1" [ref=e44] [cursor=pointer]:
+        - generic [ref=e45]:
+          - img [ref=e46]
+          - text: 我创建的
+        - generic [ref=e50]: "1"
+      - button "我参与的" [ref=e51] [cursor=pointer]:
+        - generic [ref=e52]:
+          - img [ref=e53]
+          - text: 我参与的
+      - button "待我确认" [ref=e58] [cursor=pointer]:
+        - generic [ref=e59]:
+          - img [ref=e60]
+          - text: 待我确认
+      - button "待取消确认" [ref=e64] [cursor=pointer]:
+        - generic [ref=e65]:
+          - img [ref=e66]
+          - text: 待取消确认
+      - button "已超时" [ref=e68] [cursor=pointer]:
+        - generic [ref=e69]:
+          - img [ref=e70]
+          - text: 已超时
+      - button "已完成 8" [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]:
+          - img [ref=e75]
+          - text: 已完成
+        - generic [ref=e78]: "8"
+      - button "已取消 2" [ref=e79] [cursor=pointer]:
+        - generic [ref=e80]:
+          - img [ref=e81]
+          - text: 已取消
+        - generic [ref=e84]: "2"
+    - generic [ref=e85]:
+      - generic [ref=e86]: 统计
+      - button "任务总览" [ref=e87] [cursor=pointer]:
+        - img [ref=e88]
+        - generic [ref=e90]: 任务总览
+      - button "人员统计" [ref=e91] [cursor=pointer]:
+        - img [ref=e92]
+        - generic [ref=e97]: 人员统计
+      - button "部门统计" [ref=e98] [cursor=pointer]:
+        - img [ref=e99]
+        - generic [ref=e103]: 部门统计
+  - main [ref=e104]:
+    - generic [ref=e105]:
+      - button "打开任务搜索" [ref=e106] [cursor=pointer]:
+        - img [ref=e107]
+        - generic [ref=e110]: 搜索任务、人员、部门
+        - generic [ref=e111]: ⌘K
+      - generic [ref=e112]:
+        - button "新建 N" [ref=e113] [cursor=pointer]:
+          - img [ref=e114]
+          - text: 新建
+          - generic [ref=e115]: "N"
+        - button "演 演示用户" [ref=e117] [cursor=pointer]:
+          - generic [ref=e118]: 演
+          - generic [ref=e119]: 演示用户
+          - img [ref=e120]
+    - generic [ref=e122]:
+      - generic [ref=e123]:
+        - generic [ref=e124]:
+          - heading "我的待办任务" [level=1] [ref=e125]
+          - paragraph [ref=e126]: 跟踪你负责的待处理、处理中任务
+        - generic [ref=e127]:
+          - generic [ref=e128]: 已同步 · 刚刚
+          - generic [ref=e130]:
+            - button "仅我负责" [ref=e131] [cursor=pointer]:
+              - img [ref=e132]
+              - text: 仅我负责
+            - button "到期优先" [ref=e137] [cursor=pointer]:
+              - img [ref=e138]
+              - text: 到期优先
+      - generic [ref=e140]:
+        - generic [ref=e141]:
+          - generic [ref=e143]:
+            - img [ref=e144]
+            - generic [ref=e147]: 待处理
+            - generic [ref=e148]: "0"
+          - generic [ref=e151]: 暂无任务
+        - generic [ref=e152]:
+          - generic [ref=e154]:
+            - img [ref=e155]
+            - generic [ref=e158]: 处理中
+            - generic [ref=e159]: "1"
+          - button "FD-1012 测试任务 演示用户 · 04/25 23:59 · 0.1h" [ref=e161] [cursor=pointer]:
+            - generic [ref=e162]: FD-1012
+            - generic [ref=e163]: 测试任务
+            - generic [ref=e164]:
+              - generic [ref=e165]: 演示用户
+              - generic [ref=e166]: ·
+              - generic [ref=e167]: 04/25 23:59
+              - generic [ref=e168]: ·
+              - generic [ref=e169]: 0.1h
+        - generic [ref=e170]:
+          - generic [ref=e172]:
+            - img [ref=e173]
+            - generic [ref=e177]: 待确认
+            - generic [ref=e178]: "0"
+          - generic [ref=e181]: 暂无任务
+        - generic [ref=e182]:
+          - generic [ref=e184]:
+            - img [ref=e185]
+            - generic [ref=e187]: 已超时
+            - generic [ref=e188]: "0"
+          - generic [ref=e191]: 暂无任务
+    - complementary [ref=e192]:
+      - generic [ref=e194]: 工作洞察
+      - generic [ref=e195]:
+        - generic [ref=e196]:
+          - heading "今日关注" [level=3] [ref=e197]:
+            - img [ref=e198]
+            - text: 今日关注
+          - generic [ref=e200]:
+            - generic [ref=e201]:
+              - generic [ref=e202]: 待我确认
+              - generic [ref=e203]: "0"
+            - generic [ref=e204]:
+              - generic [ref=e205]: 今日到期
+              - generic [ref=e206]: "1"
+          - generic [ref=e208]: FD-1012 · 测试任务
+        - generic [ref=e209]:
+          - heading "最近流转" [level=3] [ref=e210]:
+            - img [ref=e211]
+            - text: 最近流转
+          - generic [ref=e214]:
+            - generic [ref=e215]:
+              - generic [ref=e216]: FD-1012
+              - generic [ref=e217]: 处理中
+            - generic [ref=e218]: 测试任务
+            - generic [ref=e219]: 演示用户 · 0.1h
+        - generic [ref=e220]:
+          - heading "超时提醒" [level=3] [ref=e221]:
+            - img [ref=e222]
+            - text: 超时提醒
+          - generic [ref=e225]:
+            - img [ref=e226]
+            - text: 当前没有超时任务
+        - generic [ref=e229]:
+          - heading "本周表现" [level=3] [ref=e230]:
+            - img [ref=e231]
+            - text: 本周表现
+          - generic [ref=e234]:
+            - generic [ref=e235]:
+              - generic [ref=e236]: "8"
+              - generic [ref=e237]: 本周完成
+            - generic [ref=e238]:
+              - generic [ref=e239]: "1"
+              - generic [ref=e240]: 待处理

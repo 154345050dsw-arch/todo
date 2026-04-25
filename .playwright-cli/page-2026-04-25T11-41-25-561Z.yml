@@ -1,0 +1,149 @@
+- generic [ref=e28]:
+  - complementary [ref=e29]:
+    - link "F FlowDesk 任务流转工作区" [ref=e31] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e32]: F
+      - generic [ref=e33]:
+        - generic [ref=e34]: FlowDesk
+        - generic [ref=e35]: 任务流转工作区
+    - generic [ref=e36]:
+      - button "我的待办" [ref=e37] [cursor=pointer]:
+        - generic [ref=e39]:
+          - img [ref=e40]
+          - text: 我的待办
+      - button "我创建的 1" [ref=e43] [cursor=pointer]:
+        - generic [ref=e44]:
+          - img [ref=e45]
+          - text: 我创建的
+        - generic [ref=e49]: "1"
+      - button "我转派的 1" [ref=e50] [cursor=pointer]:
+        - generic [ref=e51]:
+          - img [ref=e52]
+          - text: 我转派的
+        - generic [ref=e55]: "1"
+      - button "我参与的" [ref=e56] [cursor=pointer]:
+        - generic [ref=e57]:
+          - img [ref=e58]
+          - text: 我参与的
+      - button "待我确认" [ref=e63] [cursor=pointer]:
+        - generic [ref=e64]:
+          - img [ref=e65]
+          - text: 待我确认
+      - button "待取消确认" [ref=e69] [cursor=pointer]:
+        - generic [ref=e70]:
+          - img [ref=e71]
+          - text: 待取消确认
+      - button "已超时" [ref=e73] [cursor=pointer]:
+        - generic [ref=e74]:
+          - img [ref=e75]
+          - text: 已超时
+      - button "已完成 8" [ref=e78] [cursor=pointer]:
+        - generic [ref=e79]:
+          - img [ref=e80]
+          - text: 已完成
+        - generic [ref=e83]: "8"
+      - button "已取消 2" [ref=e84] [cursor=pointer]:
+        - generic [ref=e85]:
+          - img [ref=e86]
+          - text: 已取消
+        - generic [ref=e89]: "2"
+    - generic [ref=e90]:
+      - generic [ref=e91]: 统计
+      - button "任务总览" [ref=e92] [cursor=pointer]:
+        - img [ref=e93]
+        - generic [ref=e95]: 任务总览
+      - button "人员统计" [ref=e96] [cursor=pointer]:
+        - img [ref=e97]
+        - generic [ref=e102]: 人员统计
+      - button "部门统计" [ref=e103] [cursor=pointer]:
+        - img [ref=e104]
+        - generic [ref=e108]: 部门统计
+  - main [ref=e109]:
+    - generic [ref=e110]:
+      - button "打开任务搜索" [ref=e111] [cursor=pointer]:
+        - img [ref=e112]
+        - generic [ref=e115]: 搜索任务、人员、部门
+        - generic [ref=e116]: ⌘K
+      - generic [ref=e117]:
+        - button "新建 N" [ref=e118] [cursor=pointer]:
+          - img [ref=e119]
+          - text: 新建
+          - generic [ref=e120]: "N"
+        - button "演 演示用户" [ref=e122] [cursor=pointer]:
+          - generic [ref=e123]: 演
+          - generic [ref=e124]: 演示用户
+          - img [ref=e125]
+    - generic [ref=e127]:
+      - generic [ref=e128]:
+        - generic [ref=e129]:
+          - heading "我的待办任务" [level=1] [ref=e130]
+          - paragraph [ref=e131]: 跟踪你负责的待处理、处理中任务
+        - generic [ref=e132]:
+          - generic [ref=e133]: 已同步 · 刚刚
+          - generic [ref=e135]:
+            - button "仅我负责" [ref=e136] [cursor=pointer]:
+              - img [ref=e137]
+              - text: 仅我负责
+            - button "到期优先" [ref=e142] [cursor=pointer]:
+              - img [ref=e143]
+              - text: 到期优先
+      - generic [ref=e145]:
+        - generic [ref=e146]:
+          - generic [ref=e148]:
+            - img [ref=e149]
+            - generic [ref=e152]: 待处理
+            - generic [ref=e153]: "0"
+          - generic [ref=e156]: 暂无任务
+        - generic [ref=e157]:
+          - generic [ref=e159]:
+            - img [ref=e160]
+            - generic [ref=e163]: 处理中
+            - generic [ref=e164]: "0"
+          - generic [ref=e167]: 暂无任务
+        - generic [ref=e168]:
+          - generic [ref=e170]:
+            - img [ref=e171]
+            - generic [ref=e175]: 待确认
+            - generic [ref=e176]: "0"
+          - generic [ref=e179]: 暂无任务
+        - generic [ref=e180]:
+          - generic [ref=e182]:
+            - img [ref=e183]
+            - generic [ref=e185]: 已超时
+            - generic [ref=e186]: "0"
+          - generic [ref=e189]: 暂无任务
+    - complementary [ref=e190]:
+      - generic [ref=e192]: 工作洞察
+      - generic [ref=e193]:
+        - generic [ref=e194]:
+          - heading "今日关注" [level=3] [ref=e195]:
+            - img [ref=e196]
+            - text: 今日关注
+          - generic [ref=e198]:
+            - generic [ref=e199]:
+              - generic [ref=e200]: 待我确认
+              - generic [ref=e201]: "0"
+            - generic [ref=e202]:
+              - generic [ref=e203]: 今日到期
+              - generic [ref=e204]: "1"
+        - heading "最近流转" [level=3] [ref=e206]:
+          - img [ref=e207]
+          - text: 最近流转
+        - generic [ref=e209]:
+          - heading "超时提醒" [level=3] [ref=e210]:
+            - img [ref=e211]
+            - text: 超时提醒
+          - generic [ref=e214]:
+            - img [ref=e215]
+            - text: 当前没有超时任务
+        - generic [ref=e218]:
+          - heading "本周表现" [level=3] [ref=e219]:
+            - img [ref=e220]
+            - text: 本周表现
+          - generic [ref=e223]:
+            - generic [ref=e224]:
+              - generic [ref=e225]: "8"
+              - generic [ref=e226]: 本周完成
+            - generic [ref=e227]:
+              - generic [ref=e228]: "0"
+              - generic [ref=e229]: 待处理
