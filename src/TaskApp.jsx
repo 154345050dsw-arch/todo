@@ -694,20 +694,20 @@ function Workspace({ user, onLogout }) {
 
   return (
     <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
-      <div className="grid min-h-screen grid-cols-[260px_minmax(0,1fr)]">
-        {/* Left Sidebar */}
-        <aside className="border-r border-[var(--app-border)] bg-[var(--app-bg)] p-4">
+      <div className="grid min-h-screen grid-cols-[280px_minmax(0,1fr)]">
+        {/* Left Sidebar - 优化宽度和间距 */}
+        <aside className="border-r border-[var(--app-border)] bg-[var(--app-bg)] p-5">
           <div className="mb-6 flex items-center justify-between">
             <a href="/" className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-[12px] bg-[var(--app-text)] text-sm font-semibold text-[var(--app-panel)]">F</span>
+              <span className="grid size-10 place-items-center rounded-[12px] bg-[var(--app-text)] text-sm font-semibold text-[var(--app-panel)]">F</span>
               <div>
-                <div className="text-sm font-semibold">FlowDesk</div>
+                <div className="text-[15px] font-semibold">FlowDesk</div>
                 <div className="text-xs text-[var(--app-muted)]">任务流转工作区</div>
               </div>
             </a>
           </div>
 
-          {/* Navigation Items */}
+          {/* Navigation Items - 优化高度和间距 */}
           <div className="space-y-1">
             {scopes.map((item) => {
               const count = dashboard[item.countKey] ?? 0;
@@ -718,25 +718,25 @@ function Workspace({ user, onLogout }) {
                   key={item.key}
                   type="button"
                   onClick={() => selectTaskScope(item.key)}
-                  className={`relative flex h-10 w-full items-center justify-between rounded-[8px] px-3 text-left text-sm transition-colors ${
+                  className={`relative flex h-11 w-full items-center justify-between rounded-[10px] px-4 text-left text-[15px] transition-all duration-200 ${
                     isSelected
-                      ? 'bg-[var(--app-panel)] font-medium shadow-[0_0_0_1px_var(--app-border)]'
-                      : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]'
+                      ? 'bg-[var(--app-panel)] font-medium text-[var(--app-text)] shadow-[var(--shadow-border)]'
+                      : 'text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]'
                   }`}
                 >
                   {isSelected && <span className="nav-selected-left" />}
-                  <span className={`flex items-center gap-2 ${isSelected || isTodoCount ? 'text-[var(--app-text)]' : ''}`}>
-                    <item.icon size={15} aria-hidden="true" />
+                  <span className={`flex items-center gap-3 ${isSelected || isTodoCount ? 'text-[var(--app-text)]' : ''}`}>
+                    <item.icon size={16} strokeWidth={1.5} aria-hidden="true" />
                     {item.label}
                   </span>
                   {count > 0 && (
                     <span
-                      className={`min-w-6 rounded-full border px-2 py-0.5 text-center text-xs font-bold tabular-nums transition ${
+                      className={`min-w-[24px] rounded-full px-2 py-0.5 text-center text-[13px] font-medium tabular-nums transition ${
                         isSelected
-                          ? 'border-transparent bg-[var(--app-primary)] text-white'
+                          ? 'bg-[var(--app-primary)] text-white'
                           : isTodoCount
-                            ? 'border-transparent bg-[var(--app-text)] text-[var(--app-panel)]'
-                            : 'border-[var(--app-border)] bg-[var(--app-panel-soft)] text-[var(--app-muted)]'
+                            ? 'bg-[var(--app-text)] text-[var(--app-panel)]'
+                            : 'bg-[var(--app-panel-soft)] text-[var(--app-muted)]'
                       }`}
                     >
                       {count}
@@ -748,27 +748,27 @@ function Workspace({ user, onLogout }) {
           </div>
 
           {/* Statistics Section */}
-          <div className="mt-6 border-t border-[var(--app-border)] pt-4">
-            <div className="px-3 pb-2 text-[11px] font-semibold uppercase text-[var(--app-subtle)]">统计</div>
+          <div className="mt-6 border-t border-[var(--app-border)] pt-5">
+            <div className="px-4 pb-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--app-subtle)]">统计</div>
             <button
               type="button"
               onClick={() => setWorkspaceMode('overview')}
-              className={`relative flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm transition-colors ${
+              className={`relative flex h-11 w-full items-center gap-3 rounded-[10px] px-4 text-left text-[15px] transition-all duration-200 ${
                 workspaceMode === 'overview'
-                  ? 'bg-[var(--app-panel)] font-medium shadow-[0_0_0_1px_var(--app-border)]'
-                  : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]'
+                  ? 'bg-[var(--app-panel)] font-medium text-[var(--app-text)] shadow-[var(--shadow-border)]'
+                  : 'text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]'
               }`}
             >
               {workspaceMode === 'overview' && <span className="nav-selected-left" />}
-              <BarChart3 size={15} aria-hidden="true" />
+              <BarChart3 size={16} strokeWidth={1.5} aria-hidden="true" />
               <span>任务总览</span>
             </button>
             {[
               ['人员统计', Users],
               ['部门统计', Building2],
             ].map(([label, Icon]) => (
-              <button key={label} type="button" className="flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]">
-                <Icon size={15} aria-hidden="true" />
+              <button key={label} type="button" className="flex h-11 w-full items-center gap-3 rounded-[10px] px-4 text-left text-[15px] text-[var(--app-muted)] transition-all duration-200 hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]">
+                <Icon size={16} strokeWidth={1.5} aria-hidden="true" />
                 <span>{label}</span>
               </button>
             ))}
@@ -777,52 +777,52 @@ function Workspace({ user, onLogout }) {
 
         {/* Main Content Area */}
         <main className="relative min-w-0 overflow-hidden">
-          {/* Top Header */}
-          <header className={`flex h-14 items-center justify-between border-b border-[var(--app-border)] bg-[var(--app-bg)] px-5 transition-all duration-300 ${drawerOpen ? 'mr-[min(520px,42vw)]' : 'mr-[340px]'}`}>
-            {/* Search Box */}
+          {/* Top Header - 优化高度和间距 */}
+          <header className={`flex h-16 items-center justify-between border-b border-[var(--app-border)] bg-[var(--app-bg)] px-6 transition-all duration-300 ${drawerOpen ? 'mr-[min(520px,42vw)]' : 'mr-[340px]'}`}>
+            {/* Search Box - 优化样式 */}
             <button
               type="button"
               onClick={openSearch}
-              className="relative flex h-9 w-[360px] items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 text-left text-sm transition-colors hover:border-[var(--app-primary)]"
+              className="relative flex h-10 w-[400px] items-center gap-3 rounded-[10px] border border-[var(--app-border)] bg-[var(--app-panel)] px-4 text-left text-[15px] transition-all duration-200 hover:border-[var(--app-primary)]/30 hover:shadow-[var(--shadow-sm)]"
               aria-label="打开任务搜索"
             >
-              <Search size={15} className="text-[var(--app-muted)]" aria-hidden="true" />
+              <Search size={16} className="text-[var(--app-muted)]" strokeWidth={1.5} aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-[var(--app-muted)]">搜索任务、人员、部门</span>
-              <kbd className="hidden rounded-[6px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--app-muted)] sm:inline">⌘K</kbd>
+              <kbd className="hidden rounded-[6px] bg-[var(--app-panel-soft)] px-2 py-1 text-[12px] font-medium text-[var(--app-subtle)] sm:inline">⌘K</kbd>
             </button>
 
-            {/* Right Toolbar */}
-            <div className="flex items-center gap-2">
-              {/* New Task Button */}
+            {/* Right Toolbar - 优化间距 */}
+            <div className="flex items-center gap-3">
+              {/* New Task Button - 优化样式 */}
               <button
                 ref={createButtonRef}
                 type="button"
                 onClick={() => setCreateOpen(true)}
-                className="flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--app-primary)] px-3 text-sm font-medium text-white transition-colors hover:bg-[var(--app-primary-strong)]"
+                className="flex h-10 items-center gap-2 rounded-[10px] bg-[var(--app-primary)] px-4 text-[15px] font-medium text-white transition-all duration-200 hover:bg-[var(--app-primary-strong)] hover:shadow-[0_2px_8px_rgba(91,127,199,0.15)]"
               >
-                <Plus size={14} />
+                <Plus size={16} strokeWidth={2} />
                 新建
-                <kbd className="rounded-[6px] bg-[rgba(255,255,255,0.15)] px-1 py-0.5 text-[11px] font-medium">N</kbd>
+                <kbd className="rounded-[6px] bg-[rgba(255,255,255,0.15)] px-1.5 py-0.5 text-[11px] font-medium">N</kbd>
               </button>
 
-              {/* User Menu */}
+              {/* User Menu - 优化样式 */}
               <div className="relative">
                 <button
                   type="button"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex h-9 items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2.5 text-sm transition-colors hover:border-[var(--app-primary)]"
+                  className="flex h-10 items-center gap-2.5 rounded-[10px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 text-[15px] transition-all duration-200 hover:border-[var(--app-primary)]/30 hover:shadow-[var(--shadow-sm)]"
                 >
-                  <div className="grid size-6 place-items-center rounded-[8px] bg-[var(--app-text)] text-xs font-semibold text-[var(--app-panel)]">
+                  <div className="grid size-7 place-items-center rounded-[8px] bg-[var(--app-text)] text-xs font-semibold text-[var(--app-panel)]">
                     {user.first_name?.[0] || user.username?.[0] || 'U'}
                   </div>
                   <span className="max-w-[80px] truncate font-medium">{displayUser(user)}</span>
-                  <ChevronDown size={14} className={`text-[var(--app-muted)] transition ${userMenuOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={14} className={`text-[var(--app-muted)] transition-transform duration-200 ${userMenuOpen ? 'rotate-180' : ''}`} strokeWidth={1.5} />
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute right-0 top-11 z-30 w-48 rounded-[12px] border border-[var(--app-border)] bg-[var(--app-panel)] p-1 shadow-[var(--app-shadow)]">
-                    <div className="mb-1 px-3 py-2">
-                      <div className="text-sm font-semibold">{displayUser(user)}</div>
+                  <div className="absolute right-0 top-12 z-30 w-52 rounded-[12px] border border-[var(--app-border)] bg-[var(--app-panel)] p-1.5 shadow-[var(--shadow-xl)] animate-slideDown">
+                    <div className="mb-1.5 px-3 py-2.5">
+                      <div className="text-[15px] font-semibold">{displayUser(user)}</div>
                       <div className="text-xs text-[var(--app-muted)]">{user.username}</div>
                     </div>
                     <div className="border-t border-[var(--app-border)] py-1">
@@ -836,11 +836,11 @@ function Workspace({ user, onLogout }) {
                           key={value}
                           type="button"
                           onClick={() => setTheme(value)}
-                          className={`flex h-9 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm ${theme === value ? 'bg-[var(--app-panel-soft)] font-medium' : 'text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]'}`}
+                          className={`flex h-10 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[15px] transition-colors ${theme === value ? 'bg-[var(--app-panel-soft)] font-medium text-[var(--app-text)]' : 'text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]'}`}
                         >
-                          <Icon size={14} />
+                          <Icon size={16} strokeWidth={1.5} />
                           {label}
-                          {theme === value && <Check size={14} className="ml-auto text-[var(--app-primary)]" />}
+                          {theme === value && <Check size={16} className="ml-auto text-[var(--app-primary)]" strokeWidth={2} />}
                         </button>
                       ))}
                     </div>
@@ -848,9 +848,9 @@ function Workspace({ user, onLogout }) {
                       <button
                         type="button"
                         onClick={() => { setUserMenuOpen(false); onLogout(); }}
-                        className="flex h-9 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                        className="flex h-10 w-full items-center gap-2.5 rounded-[8px] px-3 text-left text-[15px] text-red-500 transition-colors hover:bg-red-50 dark:hover:bg-red-950"
                       >
-                        <X size={14} />
+                        <X size={16} strokeWidth={1.5} />
                         退出登录
                       </button>
                     </div>

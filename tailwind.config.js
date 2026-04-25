@@ -14,6 +14,12 @@ export default {
           'Segoe UI',
           'sans-serif',
         ],
+        serif: [
+          'Source Serif 4',
+          'Noto Serif SC',
+          'Georgia',
+          'serif',
+        ],
       },
       colors: {
         ink: '#171717',
@@ -25,10 +31,43 @@ export default {
         coral: '#e05a47',
         amber: '#b98213',
         violet: '#6a5acd',
+        // 温暖灰调色板
+        stone: {
+          50: '#fafaf9',
+          100: '#f5f5f4',
+          200: '#e7e5e4',
+          300: '#d6d3d1',
+          400: '#a8a29e',
+          500: '#78716c',
+          600: '#57534e',
+          700: '#44403c',
+          800: '#292524',
+          900: '#1c1917',
+        },
+      },
+      spacing: {
+        '4.5': '1.125rem',  // 18px
+        '13': '3.25rem',    // 52px
+        '15': '3.75rem',    // 60px
+        '18': '4.5rem',     // 72px
       },
       boxShadow: {
         soft: '0 24px 80px rgba(23, 23, 23, 0.10)',
         line: '0 0 0 1px rgba(23, 23, 23, 0.08)',
+        border: '0 0 0 1px rgba(0, 0, 0, 0.05)',
+        sm: '0 1px 2px 0 rgba(0, 0, 0, 0.03), 0 1px 3px 0 rgba(0, 0, 0, 0.02)',
+        md: '0 2px 4px -1px rgba(0, 0, 0, 0.04), 0 4px 6px -1px rgba(0, 0, 0, 0.06)',
+        lg: '0 4px 6px -2px rgba(0, 0, 0, 0.04), 0 10px 15px -3px rgba(0, 0, 0, 0.08)',
+        xl: '0 10px 10px -5px rgba(0, 0, 0, 0.03), 0 20px 25px -5px rgba(0, 0, 0, 0.08)',
+        '2xl': '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      },
+      borderRadius: {
+        'xs': '6px',
+        'sm': '8px',
+        'md': '10px',
+        'lg': '12px',
+        'xl': '16px',
+        '2xl': '20px',
       },
     },
   },
