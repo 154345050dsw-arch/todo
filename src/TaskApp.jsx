@@ -65,12 +65,12 @@ const statusLabels = {
 
 const statusTone = {
   todo: 'border-[var(--app-border)] bg-[var(--app-panel-soft)] text-[var(--app-muted)]',
-  in_progress: 'border-[#ddd6fe] bg-[#f7f5ff] text-[#6d5bd0] dark:border-[#3c3756] dark:bg-[#23222d] dark:text-[#c4b5fd]',
-  confirming: 'border-[#c7d2fe] bg-[#f5f7ff] text-[#3155c7] dark:border-[#303a63] dark:bg-[#1f2433] dark:text-[#a5b4fc]',
-  acceptance: 'border-[#bbf7d0] bg-[#f7fdf9] text-[#16825a] dark:border-[#254936] dark:bg-[#1c2721] dark:text-[#86efac]',
-  overdue: 'border-[#fecaca] bg-[#fff7f7] text-[#c24141] dark:border-[#5b2d2d] dark:bg-[#2b2020] dark:text-[#fca5a5]',
-  done: 'border-[#bbf7d0] bg-[#f7fdf9] text-[#16825a] dark:border-[#254936] dark:bg-[#1c2721] dark:text-[#86efac]',
-  cancel_pending: 'border-[#fde68a] bg-[#fffaf0] text-[#9a5b13] dark:border-[#594527] dark:bg-[#29231b] dark:text-[#fcd34d]',
+  in_progress: 'border-indigo-200 bg-indigo-50 text-indigo-600 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-400',
+  confirming: 'border-blue-200 bg-blue-50 text-blue-600 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-400',
+  acceptance: 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400',
+  overdue: 'border-red-200 bg-red-50 text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400',
+  done: 'border-emerald-200 bg-emerald-50 text-emerald-600 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-400',
+  cancel_pending: 'border-amber-200 bg-amber-50 text-amber-600 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-400',
   cancelled: 'border-[var(--app-border)] bg-[var(--app-panel-soft)] text-[var(--app-muted)]',
 };
 
@@ -86,10 +86,10 @@ const searchStatusGroups = [
 
 // Notion风格事件条样式（彩色但不刺眼）
 const eventBarStyles = {
-  todo: 'bg-zinc-200/70 text-zinc-700 dark:bg-zinc-700/50 dark:text-zinc-300',
+  todo: 'bg-zinc-200/70 text-zinc-700 dark:bg-zinc-700/40 dark:text-zinc-300',
   in_progress: 'bg-indigo-200/70 text-indigo-800 dark:bg-indigo-700/40 dark:text-indigo-300',
-  confirming: 'bg-violet-200/70 text-violet-800 dark:bg-violet-700/40 dark:text-violet-300',
-  acceptance: 'bg-teal-200/70 text-teal-800 dark:bg-teal-700/40 dark:text-teal-300',
+  confirming: 'bg-blue-200/70 text-blue-800 dark:bg-blue-700/40 dark:text-blue-300',
+  acceptance: 'bg-emerald-200/70 text-emerald-800 dark:bg-emerald-700/40 dark:text-emerald-300',
   done: 'bg-emerald-200/70 text-emerald-800 dark:bg-emerald-700/40 dark:text-emerald-300',
   cancel_pending: 'bg-amber-200/70 text-amber-800 dark:bg-amber-700/40 dark:text-amber-300',
   cancelled: 'bg-zinc-200/50 text-zinc-500 dark:bg-zinc-700/30 dark:text-zinc-400',
@@ -426,7 +426,7 @@ function AuthScreen({ onAuthed }) {
         </div>
 
         <form onSubmit={submit} className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-panel)] p-6 shadow-[var(--app-shadow)]">
-          <div className="mb-6 inline-flex rounded-[11px] border border-[var(--app-border)] p-1">
+          <div className="mb-6 inline-flex rounded-[10px] border border-[var(--app-border)] p-1">
             {[
               ['login', '登录'],
               ['register', '注册'],
@@ -435,7 +435,7 @@ function AuthScreen({ onAuthed }) {
                 key={value}
                 type="button"
                 onClick={() => setMode(value)}
-                className={`h-9 rounded-[9px] px-4 text-sm font-medium ${mode === value ? 'bg-[var(--app-text)] text-[var(--app-panel)]' : 'text-[var(--app-muted)]'}`}
+                className={`h-9 rounded-[8px] px-4 text-sm font-medium ${mode === value ? 'bg-[var(--app-text)] text-[var(--app-panel)]' : 'text-[var(--app-muted)]'}`}
               >
                 {label}
               </button>
@@ -448,7 +448,7 @@ function AuthScreen({ onAuthed }) {
               <input
                 value={form.display_name}
                 onChange={(event) => setForm({ ...form, display_name: event.target.value })}
-                className="mt-2 h-11 w-full rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 outline-none focus:border-[var(--app-primary)]"
+                className="mt-2 h-10 w-full rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-sm outline-none transition-colors focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[var(--app-primary)]/10"
                 placeholder="例如：周岚"
               />
             </label>
@@ -472,7 +472,7 @@ function AuthScreen({ onAuthed }) {
             />
           </label>
           {error && <div className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</div>}
-          <button disabled={loading} className="h-11 w-full rounded-[10px] bg-[var(--app-primary)] text-sm font-semibold text-white disabled:opacity-60">
+          <button disabled={loading} className="h-10 w-full rounded-[8px] bg-[var(--app-primary)] text-sm font-semibold text-white transition-colors disabled:opacity-60 hover:bg-[var(--app-primary-strong)]">
             {loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
           </button>
           <p className="mt-4 text-xs text-[var(--app-muted)]">演示账号：demo / demo123456。先运行后端 seed 命令生成。</p>
@@ -718,10 +718,10 @@ function Workspace({ user, onLogout }) {
                   key={item.key}
                   type="button"
                   onClick={() => selectTaskScope(item.key)}
-                  className={`relative flex h-10 w-full items-center justify-between rounded-[10px] px-3 text-left text-sm transition ${
+                  className={`relative flex h-10 w-full items-center justify-between rounded-[8px] px-3 text-left text-sm transition-colors ${
                     isSelected
                       ? 'bg-[var(--app-panel)] font-medium shadow-[0_0_0_1px_var(--app-border)]'
-                      : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] dark:hover:bg-[rgba(255,255,255,0.05)]'
+                      : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]'
                   }`}
                 >
                   {isSelected && <span className="nav-selected-left" />}
@@ -753,10 +753,10 @@ function Workspace({ user, onLogout }) {
             <button
               type="button"
               onClick={() => setWorkspaceMode('overview')}
-              className={`relative flex h-10 w-full items-center gap-2 rounded-[10px] px-3 text-left text-sm transition ${
+              className={`relative flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm transition-colors ${
                 workspaceMode === 'overview'
                   ? 'bg-[var(--app-panel)] font-medium shadow-[0_0_0_1px_var(--app-border)]'
-                  : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] dark:hover:bg-[rgba(255,255,255,0.05)]'
+                  : 'text-[var(--app-muted)] hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]'
               }`}
             >
               {workspaceMode === 'overview' && <span className="nav-selected-left" />}
@@ -767,7 +767,7 @@ function Workspace({ user, onLogout }) {
               ['人员统计', Users],
               ['部门统计', Building2],
             ].map(([label, Icon]) => (
-              <button key={label} type="button" className="flex h-10 w-full items-center gap-2 rounded-[10px] px-3 text-left text-sm text-[var(--app-muted)] transition hover:bg-[var(--app-panel)] dark:hover:bg-[rgba(255,255,255,0.05)]">
+              <button key={label} type="button" className="flex h-10 w-full items-center gap-2 rounded-[8px] px-3 text-left text-sm text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] dark:hover:bg-[rgba(255,255,255,0.05)]">
                 <Icon size={15} aria-hidden="true" />
                 <span>{label}</span>
               </button>
@@ -783,12 +783,12 @@ function Workspace({ user, onLogout }) {
             <button
               type="button"
               onClick={openSearch}
-              className="relative flex h-9 w-[360px] items-center gap-2 rounded-[10px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 text-left text-sm transition hover:border-[var(--app-primary)]"
+              className="relative flex h-9 w-[360px] items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 text-left text-sm transition-colors hover:border-[var(--app-primary)]"
               aria-label="打开任务搜索"
             >
               <Search size={15} className="text-[var(--app-muted)]" aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate text-[var(--app-muted)]">搜索任务、人员、部门</span>
-              <kbd className="hidden rounded-[5px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--app-muted)] sm:inline">⌘K</kbd>
+              <kbd className="hidden rounded-[6px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--app-muted)] sm:inline">⌘K</kbd>
             </button>
 
             {/* Right Toolbar */}
@@ -798,11 +798,11 @@ function Workspace({ user, onLogout }) {
                 ref={createButtonRef}
                 type="button"
                 onClick={() => setCreateOpen(true)}
-                className="flex h-9 items-center gap-1.5 rounded-[10px] bg-[var(--app-primary)] px-3 text-sm font-medium text-white hover:bg-[var(--app-primary-strong)]"
+                className="flex h-9 items-center gap-1.5 rounded-[8px] bg-[var(--app-primary)] px-3 text-sm font-medium text-white transition-colors hover:bg-[var(--app-primary-strong)]"
               >
                 <Plus size={14} />
                 新建
-                <kbd className="rounded-[5px] bg-[rgba(255,255,255,0.15)] px-1 py-0.5 text-[11px] font-medium">N</kbd>
+                <kbd className="rounded-[6px] bg-[rgba(255,255,255,0.15)] px-1 py-0.5 text-[11px] font-medium">N</kbd>
               </button>
 
               {/* User Menu */}
@@ -810,7 +810,7 @@ function Workspace({ user, onLogout }) {
                 <button
                   type="button"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex h-9 items-center gap-2 rounded-[10px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2.5 text-sm hover:border-[var(--app-primary)]"
+                  className="flex h-9 items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2.5 text-sm transition-colors hover:border-[var(--app-primary)]"
                 >
                   <div className="grid size-6 place-items-center rounded-[8px] bg-[var(--app-text)] text-xs font-semibold text-[var(--app-panel)]">
                     {user.first_name?.[0] || user.username?.[0] || 'U'}
@@ -1102,7 +1102,7 @@ function TaskSearchModal({
               <div className="flex h-8 items-center gap-2 px-2 text-xs font-semibold text-[var(--app-muted)]">
                 <group.Icon size={13} className={group.className} aria-hidden="true" />
                 <span>{group.label}</span>
-                <span className="rounded-[5px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-[var(--app-muted)]">
+                <span className="rounded-[6px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-[var(--app-muted)]">
                   {group.tasks.length}
                 </span>
               </div>
@@ -1124,7 +1124,7 @@ function TaskSearchModal({
                           : 'hover:bg-[var(--app-panel-soft)]'
                       }`}
                     >
-                      <div className="grid size-9 shrink-0 place-items-center rounded-[9px] border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-muted)]">
+                      <div className="grid size-9 shrink-0 place-items-center rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] text-[var(--app-muted)]">
                         <FileCheck2 size={16} aria-hidden="true" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1620,7 +1620,7 @@ function TaskBoard({ tasks, onOpen, scope }) {
         <div className="flex items-center gap-2 px-1 py-2 mb-2">
           <config.Icon size={14} className={config.colorClass} />
           <span className="text-sm font-medium">{config.label}</span>
-          <span className={`rounded-[5px] px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${config.badgeClass}`}>
+          <span className={`rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${config.badgeClass}`}>
             {tasks.length}
           </span>
         </div>
@@ -1639,7 +1639,7 @@ function TaskBoard({ tasks, onOpen, scope }) {
                 <>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-[var(--app-subtle)]">{task.code}</span>
-                    <span className="rounded-[5px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--app-muted)]">待处理</span>
+                    <span className="rounded-[6px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--app-muted)]">待处理</span>
                   </div>
                   <div className="mt-1 line-clamp-2 text-sm font-medium leading-5">{task.title}</div>
                 </>
@@ -1711,7 +1711,7 @@ function TaskBoard({ tasks, onOpen, scope }) {
               <div className="flex items-center gap-2">
                 <col.Icon size={14} className={isActive ? 'text-red-500' : 'text-[var(--app-muted)]'} />
                 <span className="text-sm font-medium">{col.label}</span>
-                <span className={`rounded-[5px] px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${
+                <span className={`rounded-[6px] px-1.5 py-0.5 text-[11px] font-medium tabular-nums ${
                   isActive
                     ? 'bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400'
                     : 'bg-[var(--app-panel-soft)] text-[var(--app-muted)]'
@@ -1728,13 +1728,13 @@ function TaskBoard({ tasks, onOpen, scope }) {
                   key={task.id}
                   type="button"
                   onClick={() => onOpen(task.id)}
-                  className="group rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] p-2.5 text-left transition hover:border-[var(--app-primary)] hover:shadow-sm"
+                  className="group rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] p-2.5 text-left transition-all hover:border-[var(--app-primary)] hover:shadow-sm"
                 >
                   {task.is_limited_view ? (
                     <>
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-medium uppercase tracking-[0.02em] text-[var(--app-subtle)]">{task.code}</span>
-                        <span className="rounded-[5px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--app-muted)]">待处理</span>
+                        <span className="rounded-[6px] bg-[var(--app-panel-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--app-muted)]">待处理</span>
                       </div>
                       <div className="mt-1 line-clamp-2 text-sm font-medium leading-5">{task.title}</div>
                     </>
@@ -1762,8 +1762,8 @@ function TaskBoard({ tasks, onOpen, scope }) {
 
                       {/* Priority Indicator - Subtle */}
                       {task.priority === 'high' && (
-                        <div className="mt-2 flex items-center gap-1 text-xs text-red-500">
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                        <div className="mt-2 inline-flex items-center gap-1 rounded-[6px] bg-red-50 px-1.5 py-0.5 text-xs font-medium text-red-500 dark:bg-red-500/10">
+                          <span className="size-1.5 rounded-full bg-red-500"></span>
                           高优先
                         </div>
                       )}
@@ -2778,7 +2778,7 @@ function ElegantDatePicker({ value, onChange, showTime, timeValue, onTimeChange,
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="h-11 w-full rounded-[9px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 pr-10 text-left text-sm font-medium outline-none transition hover:border-[var(--app-muted)] focus:border-[var(--app-primary)]"
+          className="h-11 w-full rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 pr-10 text-left text-sm font-medium outline-none transition hover:border-[var(--app-muted)] focus:border-[var(--app-primary)]"
         >
           <span className={value ? 'text-[var(--app-text)]' : 'text-[var(--app-subtle)]'}>
             {formatDateDisplay(value)}
@@ -2861,7 +2861,7 @@ function ElegantDatePicker({ value, onChange, showTime, timeValue, onTimeChange,
       <button
         type="button"
         onClick={onToggleTime}
-        className={`flex h-11 items-center gap-1 rounded-[9px] border px-3 text-xs font-medium transition ${
+        className={`flex h-11 items-center gap-1 rounded-[8px] border px-3 text-xs font-medium transition ${
           showTime
             ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
             : 'border-[var(--app-border)] bg-[var(--app-panel)] text-[var(--app-muted)] hover:text-[var(--app-text)]'
@@ -2876,7 +2876,7 @@ function ElegantDatePicker({ value, onChange, showTime, timeValue, onTimeChange,
           type="time"
           value={timeValue}
           onChange={(e) => onTimeChange(e.target.value)}
-          className="h-11 w-[88px] rounded-[9px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2 text-xs font-medium outline-none focus:border-[var(--app-primary)]"
+          className="h-11 w-[88px] rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2 text-xs font-medium outline-none focus:border-[var(--app-primary)]"
         />
       )}
     </div>
@@ -2999,7 +2999,7 @@ function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, on
           <button
             type="button"
             onClick={closeModal}
-            className="grid size-9 shrink-0 place-items-center rounded-[9px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
+            className="grid size-9 shrink-0 place-items-center rounded-[8px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
             aria-label="关闭新建任务"
           >
             <X size={17} />
@@ -3026,7 +3026,7 @@ function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, on
             </div>
 
             {/* 精致截止日期选择器 */}
-            <div className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] p-3.5">
+            <div className="rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] p-3.5">
               <div className="mb-3 flex items-center gap-2">
                 <span className="grid size-8 place-items-center rounded-[8px] bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
                   <Calendar size={15} />
@@ -3047,11 +3047,11 @@ function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, on
               />
             </div>
 
-            <div className="rounded-[10px] border border-[var(--app-border)]">
+            <div className="rounded-[8px] border border-[var(--app-border)]">
               <button
                 type="button"
                 onClick={() => setAdvancedOpen((value) => !value)}
-                className="flex h-11 w-full items-center justify-between px-3 text-sm font-medium hover:bg-[var(--app-panel-soft)]"
+                className="flex h-11 w-full items-center justify-between px-3 text-sm font-medium transition-colors hover:bg-[var(--app-panel-soft)]"
               >
                 高级字段
                 <ChevronDown size={15} className={`text-[var(--app-muted)] transition ${advancedOpen ? 'rotate-180' : ''}`} />
@@ -3089,10 +3089,10 @@ function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, on
         <div className="flex items-center justify-between gap-3 border-t border-[var(--app-border)] bg-[var(--app-panel)] px-5 py-4">
           <div className="min-w-0 text-sm text-red-600 dark:text-red-300">{error}</div>
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={closeModal} disabled={saving} className="h-10 rounded-[10px] border border-[var(--app-border)] px-4 text-sm font-medium text-[var(--app-muted)] disabled:opacity-60 hover:bg-[var(--app-panel-soft)]">
+            <button type="button" onClick={closeModal} disabled={saving} className="h-10 rounded-[8px] border border-[var(--app-border)] px-4 text-sm font-medium text-[var(--app-muted)] transition-colors disabled:opacity-60 hover:bg-[var(--app-panel-soft)]">
               取消
             </button>
-            <button type="button" disabled={saving || !form.title.trim()} onClick={submit} className="h-10 rounded-[10px] bg-[var(--app-primary)] px-5 text-sm font-medium text-white disabled:opacity-60 hover:bg-[var(--app-primary-strong)]">
+            <button type="button" disabled={saving || !form.title.trim()} onClick={submit} className="h-10 rounded-[8px] bg-[var(--app-primary)] px-5 text-sm font-medium text-white transition-colors disabled:opacity-60 hover:bg-[var(--app-primary-strong)]">
               {saving ? '创建中...' : '创建任务'}
             </button>
           </div>
@@ -3269,7 +3269,7 @@ function RichTextEditor({ value, onChange }) {
                   <X size={13} />
                 </button>
               </div>
-              <div className="flex items-center gap-2 rounded-[9px] border border-[var(--app-border)] bg-[var(--app-bg)] px-2.5 py-2 transition focus-within:border-[var(--app-primary)]">
+              <div className="flex items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-2.5 py-2 transition focus-within:border-[var(--app-primary)]">
                 <input
                   ref={linkInputRef}
                   value={linkUrl}
@@ -3418,7 +3418,7 @@ function UserSelectControl({
         key={`${frequent ? 'frequent' : 'user'}-${user.id}`}
         type="button"
         onClick={() => canRemove ? onRemoveFrequent?.(user.id) : chooseUser(user)}
-        className={`flex w-full items-center gap-3 rounded-[9px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
+        className={`flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
           selected ? 'bg-[var(--app-primary)]/10' : ''
         } ${compact ? 'py-1.5' : ''}`}
       >
@@ -3477,7 +3477,7 @@ function UserSelectControl({
         {open && (
           <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 overflow-hidden rounded-[12px] border border-[var(--app-border)] bg-[var(--app-panel)] shadow-[0_12px_36px_rgba(0,0,0,0.16)]">
             <div className="border-b border-[var(--app-border)] p-2">
-              <div className="flex items-center gap-2 rounded-[9px] border border-[var(--app-border)] bg-[var(--app-bg)] px-2.5 py-2 transition focus-within:border-[var(--app-primary)]">
+              <div className="flex items-center gap-2 rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-2.5 py-2 transition focus-within:border-[var(--app-primary)]">
                 <Search size={14} className="shrink-0 text-[var(--app-muted)]" />
                 <input
                   ref={searchInputRef}
@@ -3492,7 +3492,7 @@ function UserSelectControl({
                   <button
                     type="button"
                     onClick={() => setSearchQuery('')}
-                    className="grid size-5 place-items-center rounded-[5px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
+                    className="grid size-5 place-items-center rounded-[6px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
                     aria-label="清空搜索"
                   >
                     <X size={13} />
@@ -3511,7 +3511,7 @@ function UserSelectControl({
                   <button
                     type="button"
                     onClick={onToggleManageFrequent}
-                    className="rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--app-subtle)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-muted)]"
+                    className="rounded-[6px] px-1.5 py-0.5 text-[11px] text-[var(--app-subtle)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-muted)]"
                   >
                     {manageFrequentOpen ? '完成' : '管理'}
                   </button>
@@ -3527,7 +3527,7 @@ function UserSelectControl({
                 <button
                   type="button"
                   onClick={chooseEmpty}
-                  className={`mb-1 flex w-full items-center gap-3 rounded-[9px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
+                  className={`mb-1 flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
                     !selectedUser ? 'bg-[var(--app-panel-soft)]' : ''
                   }`}
                 >
@@ -3678,7 +3678,7 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
             <button
               type="button"
               onClick={() => setManageOpen((value) => !value)}
-              className="rounded-[5px] px-1.5 py-0.5 text-[11px] text-[var(--app-subtle)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-muted)]"
+              className="rounded-[6px] px-1.5 py-0.5 text-[11px] text-[var(--app-subtle)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-muted)]"
             >
               {manageOpen ? '完成' : '管理'}
             </button>
@@ -3739,7 +3739,7 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
               <button
                 type="button"
                 onClick={() => { setSearchQuery(''); setSearchOpen(false); }}
-                className="grid size-5 place-items-center rounded-[5px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
+                className="grid size-5 place-items-center rounded-[6px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]"
                 aria-label="清空搜索"
               >
                 <X size={13} />
@@ -3758,7 +3758,7 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
                         key={item.id}
                         type="button"
                         onClick={() => selectSearchUser(item)}
-                        className={`flex w-full items-center gap-3 rounded-[9px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
+                        className={`flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
                           selected ? 'bg-[var(--app-primary)]/10' : ''
                         }`}
                       >
