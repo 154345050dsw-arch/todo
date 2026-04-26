@@ -214,6 +214,7 @@ class TaskReminder(models.Model):
 
 class TaskNotification(models.Model):
     class NotificationType(models.TextChoices):
+        TASK_CREATED = "task_created", "新任务"
         TASK_REMIND = "task_remind", "任务催办"
         TASK_COMPLETED = "task_completed", "任务已完成"
         TASK_CANCEL_REQUESTED = "task_cancel_requested", "任务取消申请"

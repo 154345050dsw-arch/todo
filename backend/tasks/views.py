@@ -193,6 +193,15 @@ class TaskListCreateView(APIView):
         if participant_ids:
             task.participants.set(User.objects.filter(id__in=participant_ids))
         create_flow_event(task, request.user, FlowEvent.EventType.CREATED, note="创建任务")
+        # 通知候选负责人
+        for candidate in candidates:
+            if candidate.id != request.user.id:
+                create_task_notification(
+                    TaskNotification.NotificationType.TASK_CREATED,
+                    task,
+                    request.user,
+                    receiver=candidate,
+                )
         return Response(TaskDetailSerializer(task, context={"request": request}).data, status=status.HTTP_201_CREATED)
 
 

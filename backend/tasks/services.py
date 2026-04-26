@@ -14,6 +14,11 @@ logger = logging.getLogger(__name__)
 
 
 NOTIFICATION_CONFIGS = {
+    TaskNotification.NotificationType.TASK_CREATED: {
+        "title": "新任务",
+        "content_template": "{actor} 创建了任务：{task_title}",
+        "helper_template": "截止时间：{deadline}",
+    },
     TaskNotification.NotificationType.TASK_REMIND: {
         "title": "任务催办",
         "content_template": "{actor} 催办你处理任务：{task_title}",
