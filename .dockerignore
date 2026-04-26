@@ -1,0 +1,12 @@
+node_modules/
+.git/
+.gitignore
+*.md
+.env
+backend/.env
+dist/
+src-tauri/
+docs/
+.playwright-cli/
+*.log
+.DS_Store

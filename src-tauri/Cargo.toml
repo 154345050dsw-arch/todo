@@ -1,0 +1,13 @@
+[package]
+name = "flowdesk"
+version = "1.0.0"
+description = "FlowDesk desktop client"
+authors = ["FlowDesk"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+

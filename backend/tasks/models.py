@@ -6,12 +6,61 @@ from django.utils import timezone
 class Department(models.Model):
     name = models.CharField(max_length=80, unique=True)
     code = models.CharField(max_length=32, unique=True)
+    parent = models.ForeignKey(
+        'self',
+        related_name='children',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='上级部门'
+    )
+    manager = models.ForeignKey(
+        User,
+        related_name='managed_departments',
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='部门负责人'
+    )
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         ordering = ["name"]
+        verbose_name = '部门'
+        verbose_name_plural = '部门'
 
     def __str__(self):
         return self.name
+
+    def get_descendants(self):
+        """递归获取所有下级部门（仅启用状态）"""
+        descendants = []
+        for child in self.children.filter(is_active=True):
+            descendants.append(child)
+            descendants.extend(child.get_descendants())
+        return descendants
+
+    def get_all_descendant_ids(self):
+        """获取所有下级部门ID列表"""
+        return [d.id for d in self.get_descendants()]
+
+    @property
+    def full_path(self):
+        """获取部门完整路径（从顶级到当前）"""
+        path = [self.name]
+        current = self.parent
+        while current:
+            path.insert(0, current.name)
+            current = current.parent
+        return ' / '.join(path)
+
+
+class UserRole(models.TextChoices):
+    SUPER_ADMIN = 'super_admin', '超级管理员'
+    DEPARTMENT_MANAGER = 'department_manager', '部门负责人'
+    MEMBER = 'member', '普通成员'
 
 
 class UserProfile(models.Model):
@@ -23,6 +72,19 @@ class UserProfile(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
     )
+    role = models.CharField(
+        max_length=24,
+        choices=UserRole.choices,
+        default=UserRole.MEMBER,
+        verbose_name='用户角色'
+    )
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = '用户档案'
+        verbose_name_plural = '用户档案'
 
     def __str__(self):
         return f"{self.user.username} profile"
@@ -92,6 +154,7 @@ class FlowEvent(models.Model):
         OWNER = "owner", "负责人变更"
         DEPARTMENT = "department", "部门变更"
         ACTION = "action", "操作"
+        REMIND = "remind", "催办"
 
     task = models.ForeignKey(Task, related_name="events", on_delete=models.CASCADE)
     actor = models.ForeignKey(User, related_name="flow_events", on_delete=models.CASCADE)
@@ -123,3 +186,58 @@ class TaskComment(models.Model):
 
     def __str__(self):
         return f"{self.task.code} comment by {self.author.username}"
+
+
+class TaskReminder(models.Model):
+    class RemindType(models.TextChoices):
+        PROCESS = "process_remind", "催处理"
+        CONFIRM = "confirm_remind", "催确认"
+        CANCEL_CONFIRM = "cancel_confirm_remind", "催取消确认"
+
+    task = models.ForeignKey(Task, related_name="reminders", on_delete=models.CASCADE)
+    from_user = models.ForeignKey(User, related_name="sent_task_reminders", on_delete=models.CASCADE)
+    to_user = models.ForeignKey(User, related_name="received_task_reminders", on_delete=models.CASCADE)
+    remind_type = models.CharField(max_length=32, choices=RemindType.choices)
+    remark = models.CharField(max_length=500, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["task", "to_user", "-created_at"]),
+            models.Index(fields=["remind_type", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task.code} {self.get_remind_type_display()} {self.to_user_id}"
+
+
+class TaskNotification(models.Model):
+    class NotificationType(models.TextChoices):
+        TASK_REMIND = "task_remind", "任务催办"
+        TASK_COMPLETED = "task_completed", "任务已完成"
+        TASK_CANCEL_REQUESTED = "task_cancel_requested", "任务取消申请"
+        TASK_TRANSFERRED = "task_transferred", "任务流转"
+        COMPLETE_CONFIRM = "complete_confirm", "待完成确认"
+        CANCEL_CONFIRM = "cancel_confirm", "待取消确认"
+        TASK_TIMEOUT = "task_timeout", "任务超时"
+
+    recipient = models.ForeignKey(User, related_name="task_notifications", on_delete=models.CASCADE)
+    actor = models.ForeignKey(User, related_name="sent_task_notifications", on_delete=models.CASCADE)
+    task = models.ForeignKey(Task, related_name="notifications", on_delete=models.CASCADE)
+    notification_type = models.CharField(max_length=32, choices=NotificationType.choices, default=NotificationType.TASK_REMIND)
+    title = models.CharField(max_length=80)
+    content = models.TextField()
+    is_read = models.BooleanField(default=False)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [
+            models.Index(fields=["recipient", "is_read", "-created_at"]),
+            models.Index(fields=["task", "-created_at"]),
+            models.Index(fields=["notification_type", "-created_at"]),
+        ]
+
+    def __str__(self):
+        return f"{self.title} -> {self.recipient_id}"

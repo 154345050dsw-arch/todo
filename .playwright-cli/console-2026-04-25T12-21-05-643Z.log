@@ -7,3 +7,7 @@
 [ 3304236ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=df07e448:20100
 [ 4539110ms] [LOG] [vite] server connection lost. Polling for restart... @ http://localhost:5173/@vite/client:864
 [ 4539212ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:5173/node_modules/.vite/deps/react-dom_client.js?v=df07e448:20100
+[10368370ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/src/TaskApp.jsx?t=1777130034012:0
+[10368371ms] [ERROR] [vite] Failed to reload /src/TaskApp.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:808
+[10402479ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:5173/src/TaskApp.jsx?t=1777130068121:0
+[10402479ms] [ERROR] [vite] Failed to reload /src/TaskApp.jsx. This could be due to syntax errors or importing non-existent modules. (see errors above) @ http://localhost:5173/@vite/client:808

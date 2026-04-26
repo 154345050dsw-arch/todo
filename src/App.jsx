@@ -68,7 +68,7 @@ const goals = [
   {
     icon: TimerReset,
     title: '停留时间自动统计',
-    copy: '按处理人、单位、状态和任务类型拆解耗时，定位等待和阻塞。',
+    copy: '按责任人、单位、状态和任务类型拆解耗时，定位等待和阻塞。',
     stat: '12',
     label: '统计维度',
   },
@@ -185,7 +185,7 @@ const faqs = [
   },
   {
     q: '能否统计任务在某个人或某个单位停留多久？',
-    a: '可以。系统会按处理人、单位、状态、任务类型和优先级自动聚合停留时长，也能筛选超时与反复退回任务。',
+    a: '可以。系统会按责任人、单位、状态、任务类型和优先级自动聚合停留时长，也能筛选超时与反复退回任务。',
   },
   {
     q: '是否支持跨部门转派和退回？',
@@ -242,7 +242,7 @@ function MarketingApp() {
 }
 
 function App() {
-  if (window.location.pathname.startsWith('/app')) {
+  if (import.meta.env.VITE_DESKTOP === 'true' || window.location.pathname.startsWith('/app')) {
     return <TaskApp />;
   }
   return <MarketingApp />;
@@ -1298,7 +1298,7 @@ function Management() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <div className="text-sm font-semibold">本周效率报告</div>
-                <div className="mt-1 text-xs text-graphite/[0.52]">按处理人、单位、状态聚合</div>
+                <div className="mt-1 text-xs text-graphite/[0.52]">按责任人、单位、状态聚合</div>
               </div>
               <span className="rounded-full bg-teal/10 px-3 py-1 text-xs font-medium text-teal">健康</span>
             </div>

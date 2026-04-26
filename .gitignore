@@ -1,0 +1,8 @@
+node_modules/
+src-tauri/gen/
+src-tauri/target/
+.DS_Store
+
+# 环境变量文件（包含敏感信息）
+backend/.env
+.env

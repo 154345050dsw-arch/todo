@@ -4,7 +4,7 @@ const ThemeContext = createContext(null);
 const STORAGE_KEY = 'flowdesk-theme';
 
 function getInitialTheme() {
-  return localStorage.getItem(STORAGE_KEY) || 'system';
+  return localStorage.getItem(STORAGE_KEY) || 'light';
 }
 
 function resolveTheme(theme) {
