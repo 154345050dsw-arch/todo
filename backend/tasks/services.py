@@ -279,6 +279,8 @@ def can_perform_action(user, task, action):
 
 def task_scope(queryset, user, scope):
     today = timezone.localdate()
+    # CONFIRMING 状态的任务已提交确认，不算活跃任务
+    # 但对于创建人/确认人，需要在 confirming scope 中看到
     active_excluded_statuses = [
         Task.Status.CONFIRMING,
         Task.Status.DONE,
@@ -288,6 +290,7 @@ def task_scope(queryset, user, scope):
     active_queryset = queryset.exclude(status__in=active_excluded_statuses)
     schedulable_queryset = active_queryset.exclude(status=Task.Status.OVERDUE)
     user_owned_queryset = schedulable_queryset.filter(Q(owner=user) | Q(owner__isnull=True, candidate_owners=user))
+
     if scope == "all":
         return queryset
     if scope == "created":
@@ -295,17 +298,31 @@ def task_scope(queryset, user, scope):
     if scope == "participated":
         return active_queryset.filter(participants=user)
     if scope == "confirming":
+        # 待确认任务：创建人/确认人视角
         return queryset.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=user) | Q(confirmer__isnull=True, creator=user))
     if scope == "cancel_pending":
         return queryset.filter(creator=user, status=Task.Status.CANCEL_PENDING)
     if scope == "overdue":
         return active_queryset.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today))
     if scope == "done":
-        return queryset.filter(status=Task.Status.DONE)
+        # 已完成：DONE 状态 + 责任人已提交确认的任务（通过 FlowEvent 查找原责任人）
+        done_queryset = queryset.filter(status=Task.Status.DONE)
+        # 查找当前用户作为原责任人提交确认的任务（CONFIRMING + owner_completed_at）
+        # 通过 FlowEvent: actor=user, event_type=OWNER, to_owner != user
+        owner_completed_ids = FlowEvent.objects.filter(
+            actor=user,
+            event_type=FlowEvent.EventType.OWNER,
+        ).values_list("task_id", flat=True)
+        confirming_as_owner = queryset.filter(
+            status=Task.Status.CONFIRMING,
+            owner_completed_at__isnull=False,
+            id__in=owner_completed_ids
+        )
+        return done_queryset | confirming_as_owner
     if scope == "cancelled":
         return queryset.filter(status=Task.Status.CANCELLED)
     if scope == "transferred":
-        # 我转派出去的任务：通过 FlowEvent 查询 event_type='owner' 表示负责人变更
+        # 我转派出去的任务
         transferred_task_ids = FlowEvent.objects.filter(
             actor=user,
             event_type=FlowEvent.EventType.OWNER,

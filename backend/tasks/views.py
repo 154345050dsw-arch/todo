@@ -328,25 +328,36 @@ class TaskActionView(APIView):
                 return Response({"detail": "只有责任人（处理中）或确认人（待确认）可以确认完成。"}, status=status.HTTP_403_FORBIDDEN)
             roles = get_user_roles(request.user, task)
             if task.status == Task.Status.IN_PROGRESS:
-                # 处理中状态：责任人提交完成，直接标记完成
+                # 处理中状态：责任人提交完成
                 if "owner" not in roles:
                     return Response({"detail": "只有负责人可以提交完成。"}, status=status.HTTP_403_FORBIDDEN)
                 if not rich_text_has_content(data.get("completion_note")):
                     return Response({"detail": "确认完成必须填写完成说明。"}, status=status.HTTP_400_BAD_REQUEST)
                 task.completion_note = sanitize_rich_text(data["completion_note"])
-                task.status = Task.Status.DONE
-                task.completed_at = timezone.now()
-                note = note or "确认完成"
-                # 通知确认人（创建人或指定确认人）后续核对
+                # 记录责任人完成时间
+                task.owner_completed_at = timezone.now()
+                # 流转给确认人（创建人或指定确认人）
                 confirmation_user_id = task.confirmer_id or task.creator_id
-                if confirmation_user_id and confirmation_user_id != request.user.id:
+                if confirmation_user_id == request.user.id:
+                    # 负责人自己就是确认人，直接完成
+                    task.status = Task.Status.DONE
+                    task.completed_at = timezone.now()
+                    note = note or "确认完成"
+                else:
+                    # 转给确认人确认
+                    confirmer = User.objects.filter(id=confirmation_user_id).first()
+                    if confirmer:
+                        task.owner = confirmer
+                    task.status = Task.Status.CONFIRMING
+                    note = note or "提交确认"
+                    # 通知确认人
                     create_task_notification(
                         TaskNotification.NotificationType.TASK_COMPLETED,
                         task,
                         request.user,
                     )
             elif task.status == Task.Status.CONFIRMING:
-                # 待确认状态：确认人确认完成（历史遗留逻辑）
+                # 待确认状态：确认人确认完成
                 if "confirmer" not in roles and "owner" not in roles:
                     return Response({"detail": "只有确认人或责任人可以确认。"}, status=status.HTTP_403_FORBIDDEN)
                 task.status = Task.Status.DONE
@@ -479,14 +490,34 @@ class DashboardView(APIView):
         now = timezone.now()
         today = timezone.localdate()
         week_start = now - timezone.timedelta(days=7)
-        active = tasks.exclude(status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING])
+
+        # 区分视角：责任人侧 vs 创建人侧
+        # 责任人提交确认的任务（CONFIRMING 状态 + owner_completed_at 有值）
+        # 这些任务对责任人算已完成，但对创建人算待确认
+        owner_completed_ids = tasks.filter(
+            status=Task.Status.CONFIRMING,
+            owner_completed_at__isnull=False
+        ).exclude(owner=request.user).values_list('id', flat=True)
+
+        # 活跃任务：排除已完成（DONE/CANCELLED）和已提交确认（CONFIRMING）
+        # 注意：CONFIRMING 状态不算活跃任务
+        active = tasks.exclude(
+            status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING]
+        )
         schedulable = active.exclude(status=Task.Status.OVERDUE)
         my_active = schedulable.filter(Q(owner=request.user) | Q(owner__isnull=True, candidate_owners=request.user))
-        # 我转派出去的任务：通过 event_type='owner' 判断
+
+        # 我转派出去的任务
         transferred_ids = FlowEvent.objects.filter(
             actor=request.user,
             event_type=FlowEvent.EventType.OWNER,
         ).values_list("task_id", flat=True)
+
+        # 已完成统计
+        my_done_count = tasks.filter(status=Task.Status.DONE).count()
+        if owner_completed_ids:
+            my_done_count += len(owner_completed_ids)
+
         return Response(
             {
                 "my_todo": my_active.filter(due_at__date=today).count(),
@@ -496,7 +527,7 @@ class DashboardView(APIView):
                 "due_today": my_active.filter(due_at__date=today).count(),
                 "overdue": active.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
                 "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).count(),
-                "done": tasks.filter(status=Task.Status.DONE).count(),
+                "done": my_done_count,
                 "cancelled": tasks.filter(status=Task.Status.CANCELLED).count(),
                 "created": active.filter(creator=request.user).count(),
                 "participated": active.filter(participants=request.user).count(),

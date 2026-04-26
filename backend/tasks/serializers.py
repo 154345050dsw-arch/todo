@@ -158,8 +158,8 @@ class TaskListSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         data["description"] = sanitize_rich_text(data.get("description", ""))
         if data.get("is_limited_view"):
-            allowed = {"id", "code", "title", "status", "status_label", "can_claim", "is_limited_view", "created_at", "updated_at"}
-            return {key: value for key, value in data.items() if key in allowed}
+            # 受限视图：移除 description，其他信息可查看
+            data.pop("description", None)
         return data
 
 

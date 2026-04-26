@@ -4941,6 +4941,7 @@ function ElegantDatePicker({ value, onChange, showTime, timeValue, onTimeChange,
       {showTime && (
         <input
           type="time"
+          autoFocus
           value={timeValue}
           onChange={(e) => onTimeChange(e.target.value)}
           className="h-11 w-[88px] rounded-[8px] border border-[var(--app-border)] bg-[var(--app-panel)] px-2 text-xs font-medium outline-none focus:border-[var(--app-primary)]"
@@ -4954,7 +4955,7 @@ function createInitialTaskForm(currentUser) {
   return {
     title: '',
     description: '',
-    candidate_owner_ids: currentUser?.id ? [String(currentUser.id)] : [],
+    candidate_owner_ids: [],
     due_date: localDateInputValue(),
     due_has_time: false,
     due_time: '23:59',

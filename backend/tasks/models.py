@@ -120,6 +120,7 @@ class Task(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(null=True, blank=True)
+    owner_completed_at = models.DateTimeField(null=True, blank=True, verbose_name='责任人完成时间')
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.TextField(blank=True)
     completion_note = models.TextField(blank=True)
