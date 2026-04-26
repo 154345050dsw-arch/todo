@@ -317,35 +317,27 @@ class TaskActionView(APIView):
         elif action == "confirm_complete":
             if not can_perform_action(request.user, task, TaskAction.CONFIRM_COMPLETE):
                 return Response({"detail": "只有责任人（处理中）或确认人（待确认）可以确认完成。"}, status=status.HTTP_403_FORBIDDEN)
-            confirmation_user_id = task.confirmer_id or task.creator_id
             roles = get_user_roles(request.user, task)
             if task.status == Task.Status.IN_PROGRESS:
-                # 处理中状态：责任人提交完成
+                # 处理中状态：责任人提交完成，直接标记完成
                 if "owner" not in roles:
                     return Response({"detail": "只有负责人可以提交完成。"}, status=status.HTTP_403_FORBIDDEN)
                 if not rich_text_has_content(data.get("completion_note")):
                     return Response({"detail": "确认完成必须填写完成说明。"}, status=status.HTTP_400_BAD_REQUEST)
                 task.completion_note = sanitize_rich_text(data["completion_note"])
-                if confirmation_user_id == task.owner_id:
-                    # 确认人就是当前负责人（自己给自己创建的任务），直接完成
-                    task.status = Task.Status.DONE
-                    task.completed_at = timezone.now()
-                    note = note or "确认完成"
-                else:
-                    # 确认人不是当前负责人，流转给确认人（创建人或指定确认人）确认
-                    confirmer = User.objects.filter(id=confirmation_user_id).first()
-                    if confirmer:
-                        task.owner = confirmer
-                    task.status = Task.Status.CONFIRMING
-                    note = note or "提交确认"
-                    # 通知确认人
+                task.status = Task.Status.DONE
+                task.completed_at = timezone.now()
+                note = note or "确认完成"
+                # 通知确认人（创建人或指定确认人）后续核对
+                confirmation_user_id = task.confirmer_id or task.creator_id
+                if confirmation_user_id and confirmation_user_id != request.user.id:
                     create_task_notification(
                         TaskNotification.NotificationType.TASK_COMPLETED,
                         task,
                         request.user,
                     )
             elif task.status == Task.Status.CONFIRMING:
-                # 待确认状态：确认人确认完成
+                # 待确认状态：确认人确认完成（历史遗留逻辑）
                 if "confirmer" not in roles and "owner" not in roles:
                     return Response({"detail": "只有确认人或责任人可以确认。"}, status=status.HTTP_403_FORBIDDEN)
                 task.status = Task.Status.DONE
