@@ -517,6 +517,16 @@ class DashboardView(APIView):
         schedulable = active_for_owner.exclude(status=Task.Status.OVERDUE)
         my_active = schedulable.filter(Q(owner=request.user) | Q(owner__isnull=True, candidate_owners=request.user))
 
+        # 今日待办：包含活跃任务 + 待确认任务（当前用户是确认人）
+        my_todo_tasks = my_active.filter(due_at__date=today)
+        # 加上 CONFIRMING 状态且用户是确认人的任务（owner=user 或 confirmer=user）
+        confirming_for_user = tasks.filter(
+            status=Task.Status.CONFIRMING
+        ).filter(
+            Q(owner=request.user) | Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user)
+        ).filter(due_at__date=today)
+        my_todo_count = my_todo_tasks.count() + confirming_for_user.count()
+
         # 我转派出去的任务
         transferred_ids = FlowEvent.objects.filter(
             actor=request.user,
@@ -530,11 +540,11 @@ class DashboardView(APIView):
 
         return Response(
             {
-                "my_todo": my_active.filter(due_at__date=today).count(),
+                "my_todo": my_todo_count,
                 "future": schedulable.filter(Q(due_at__date__gt=today) | Q(due_at__isnull=True)).count(),
                 "confirming": tasks.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user)).count(),
                 "cancel_pending": tasks.filter(creator=request.user, status=Task.Status.CANCEL_PENDING).count(),
-                "due_today": my_active.filter(due_at__date=today).count(),
+                "due_today": my_todo_count,
                 "overdue": active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
                 "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).count(),
                 "done": my_done_count,

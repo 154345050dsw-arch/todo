@@ -340,7 +340,16 @@ def task_scope(queryset, user, scope):
     if scope == "future":
         return schedulable_queryset.filter(Q(due_at__date__gt=today) | Q(due_at__isnull=True))
     if scope in ["my_todo", "today_todo"]:
-        return user_owned_queryset.filter(due_at__date=today)
+        # 今日待办：包含活跃任务 + 待确认任务（用户是确认人）
+        active_today = user_owned_queryset.filter(due_at__date=today)
+        # 加上 CONFIRMING 状态且用户是确认人的任务
+        confirming_for_user = queryset.filter(
+            status=Task.Status.CONFIRMING,
+            due_at__date=today
+        ).filter(
+            Q(owner=user) | Q(confirmer=user) | Q(confirmer__isnull=True, creator=user)
+        )
+        return active_today | confirming_for_user
     return queryset
 
 
