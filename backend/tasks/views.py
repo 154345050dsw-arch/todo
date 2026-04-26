@@ -331,6 +331,10 @@ class TaskActionView(APIView):
                     task.completed_at = timezone.now()
                     note = note or "确认完成"
                 else:
+                    # 提交确认：转派给确认人（创建人或指定确认人）
+                    confirmer = User.objects.filter(id=confirmation_user_id).first()
+                    if confirmer:
+                        task.owner = confirmer
                     task.status = Task.Status.CONFIRMING
                     note = note or "提交确认"
                     # 通知创建人/确认人
