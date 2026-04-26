@@ -792,7 +792,7 @@ class DepartmentActivateView(APIView):
 
 
 class UserListView(APIView):
-    """获取用户列表（带筛选）"""
+    """获取用户列表（带筛选）和创建用户"""
 
     def get(self, request):
         if not is_super_admin(request.user) and not is_department_manager(request.user):
@@ -842,11 +842,8 @@ class UserListView(APIView):
 
         return Response(results)
 
-
-class UserCreateView(APIView):
-    """创建用户"""
-
     def post(self, request):
+        """创建用户"""
         if not is_super_admin(request.user) and not is_department_manager(request.user):
             return Response({"detail": "无权创建用户。"}, status=status.HTTP_403_FORBIDDEN)
 
