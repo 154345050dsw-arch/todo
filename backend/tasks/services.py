@@ -279,31 +279,40 @@ def can_perform_action(user, task, action):
 
 def task_scope(queryset, user, scope):
     today = timezone.localdate()
-    # CONFIRMING 状态的任务已提交确认，不算活跃任务
-    # 但对于创建人/确认人，需要在 confirming scope 中看到
+    # CONFIRMING 状态的任务已提交确认
+    # 对于责任人：算已完成（在 done scope）
+    # 对于创建人/确认人：算待确认（在 confirming scope）
     active_excluded_statuses = [
-        Task.Status.CONFIRMING,
         Task.Status.DONE,
         Task.Status.CANCELLED,
-        Task.Status.CANCEL_PENDING,
     ]
-    active_queryset = queryset.exclude(status__in=active_excluded_statuses)
-    schedulable_queryset = active_queryset.exclude(status=Task.Status.OVERDUE)
+    # 责任人视角的活跃任务：排除 CONFIRMING
+    active_for_owner = queryset.exclude(status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING])
+    # 创建人视角的活跃任务：包含 CONFIRMING（但只有当创建人需要确认时）
+    # 如果任务的确认人是创建人自己，那 CONFIRMING 状态不算活跃（已流转给确认人）
+    active_for_creator = queryset.exclude(status__in=active_excluded_statuses).exclude(
+        status=Task.Status.CONFIRMING,
+        confirmer__isnull=True,
+        creator=user
+    )
+
+    schedulable_queryset = active_for_owner.exclude(status=Task.Status.OVERDUE)
     user_owned_queryset = schedulable_queryset.filter(Q(owner=user) | Q(owner__isnull=True, candidate_owners=user))
 
     if scope == "all":
         return queryset
     if scope == "created":
-        return active_queryset.filter(creator=user)
+        # 创建人视角：包含 CONFIRMING 状态的任务（但排除默认确认人是创建人自己的）
+        return active_for_creator.filter(creator=user)
     if scope == "participated":
-        return active_queryset.filter(participants=user)
+        return active_for_owner.filter(participants=user)
     if scope == "confirming":
         # 待确认任务：创建人/确认人视角
         return queryset.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=user) | Q(confirmer__isnull=True, creator=user))
     if scope == "cancel_pending":
         return queryset.filter(creator=user, status=Task.Status.CANCEL_PENDING)
     if scope == "overdue":
-        return active_queryset.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today))
+        return active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today))
     if scope == "done":
         # 已完成：DONE 状态 + 责任人已提交确认的任务（通过 FlowEvent 查找原责任人）
         done_queryset = queryset.filter(status=Task.Status.DONE)

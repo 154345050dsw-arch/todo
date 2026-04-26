@@ -494,17 +494,27 @@ class DashboardView(APIView):
         # 区分视角：责任人侧 vs 创建人侧
         # 责任人提交确认的任务（CONFIRMING 状态 + owner_completed_at 有值）
         # 这些任务对责任人算已完成，但对创建人算待确认
-        owner_completed_ids = tasks.filter(
+        owner_completed_ids = list(tasks.filter(
             status=Task.Status.CONFIRMING,
             owner_completed_at__isnull=False
-        ).exclude(owner=request.user).values_list('id', flat=True)
+        ).exclude(owner=request.user).values_list('id', flat=True))
 
-        # 活跃任务：排除已完成（DONE/CANCELLED）和已提交确认（CONFIRMING）
-        # 注意：CONFIRMING 状态不算活跃任务
-        active = tasks.exclude(
+        # 活跃任务（责任人视角）：排除 CONFIRMING/DONE/CANCELLED/CANCEL_PENDING
+        active_for_owner = tasks.exclude(
             status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING]
         )
-        schedulable = active.exclude(status=Task.Status.OVERDUE)
+
+        # 活跃任务（创建人视角）：包含 CONFIRMING（但排除默认确认人是创建人自己的）
+        # 如果任务的 confirmer 是 null 且创建人是当前用户，那 CONFIRMING 状态不算活跃（已流转给确认人）
+        active_for_creator = tasks.exclude(
+            status__in=[Task.Status.DONE, Task.Status.CANCELLED]
+        ).exclude(id__in=owner_completed_ids).exclude(
+            status=Task.Status.CONFIRMING,
+            confirmer__isnull=True,
+            creator=request.user
+        )
+
+        schedulable = active_for_owner.exclude(status=Task.Status.OVERDUE)
         my_active = schedulable.filter(Q(owner=request.user) | Q(owner__isnull=True, candidate_owners=request.user))
 
         # 我转派出去的任务
@@ -525,12 +535,12 @@ class DashboardView(APIView):
                 "confirming": tasks.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user)).count(),
                 "cancel_pending": tasks.filter(creator=request.user, status=Task.Status.CANCEL_PENDING).count(),
                 "due_today": my_active.filter(due_at__date=today).count(),
-                "overdue": active.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
+                "overdue": active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
                 "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).count(),
                 "done": my_done_count,
                 "cancelled": tasks.filter(status=Task.Status.CANCELLED).count(),
-                "created": active.filter(creator=request.user).count(),
-                "participated": active.filter(participants=request.user).count(),
+                "created": active_for_creator.filter(creator=request.user).count(),
+                "participated": active_for_owner.filter(participants=request.user).count(),
                 "transferred": tasks.filter(id__in=transferred_ids).exclude(status__in=[Task.Status.DONE, Task.Status.CANCELLED]).count(),
             }
         )
