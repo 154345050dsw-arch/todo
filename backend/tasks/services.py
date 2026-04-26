@@ -274,11 +274,10 @@ def can_perform_action(user, task, action):
 
 def task_scope(queryset, user, scope):
     today = timezone.localdate()
+    # 只排除真正已完成的任务，CONFIRMING 是活跃状态
     active_excluded_statuses = [
-        Task.Status.CONFIRMING,
         Task.Status.DONE,
         Task.Status.CANCELLED,
-        Task.Status.CANCEL_PENDING,
     ]
     active_queryset = queryset.exclude(status__in=active_excluded_statuses)
     schedulable_queryset = active_queryset.exclude(status=Task.Status.OVERDUE)

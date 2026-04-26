@@ -327,17 +327,18 @@ class TaskActionView(APIView):
                     return Response({"detail": "确认完成必须填写完成说明。"}, status=status.HTTP_400_BAD_REQUEST)
                 task.completion_note = sanitize_rich_text(data["completion_note"])
                 if confirmation_user_id == task.owner_id:
+                    # 确认人就是当前负责人（自己给自己创建的任务），直接完成
                     task.status = Task.Status.DONE
                     task.completed_at = timezone.now()
                     note = note or "确认完成"
                 else:
-                    # 提交确认：转派给确认人（创建人或指定确认人）
+                    # 确认人不是当前负责人，流转给确认人（创建人或指定确认人）确认
                     confirmer = User.objects.filter(id=confirmation_user_id).first()
                     if confirmer:
                         task.owner = confirmer
                     task.status = Task.Status.CONFIRMING
                     note = note or "提交确认"
-                    # 通知创建人/确认人
+                    # 通知确认人
                     create_task_notification(
                         TaskNotification.NotificationType.TASK_COMPLETED,
                         task,
