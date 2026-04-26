@@ -115,9 +115,6 @@ export const api = {
   health(apiBaseUrl) {
     return apiRequest('/api/health/', { skipAuth: true, apiBaseUrl });
   },
-  register(payload) {
-    return apiRequest('/api/auth/register/', { method: 'POST', skipAuth: true, body: JSON.stringify(payload) });
-  },
   login(payload) {
     return apiRequest('/api/auth/login/', { method: 'POST', skipAuth: true, body: JSON.stringify(payload) });
   },

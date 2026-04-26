@@ -12,17 +12,17 @@ netstat -tlnp | grep 5173
 netstat -tlnp | grep 8001
 ```
 
-如果被占用，修改 `docker-compose.yml` 中的端口映射。
+如果被占用，修改 `docker compose.yml` 中的端口映射。
 
 ### 2. 安装 Docker
 
 ```bash
 # Ubuntu/Debian
 apt update
-apt install docker.io docker-compose
+apt install docker.io docker compose
 
 # CentOS
-yum install docker docker-compose
+yum install docker docker compose
 
 # 启动 Docker
 systemctl start docker
@@ -120,7 +120,7 @@ MYSQL_PORT=3306
 python3 -c "import secrets; print(secrets.token_urlsafe(50))"
 ```
 
-### 2. `docker-compose.yml` （可选修改）
+### 2. `docker compose.yml` （可选修改）
 
 如果需要修改端口，编辑此文件：
 
@@ -152,16 +152,16 @@ vim .env  # 按上述模板修改
 cd /opt/flowdesk
 
 # 构建镜像
-docker-compose build
+docker compose build
 
 # 启动容器
-docker-compose up -d
+docker compose up -d
 
 # 查看容器状态
-docker-compose ps
+docker compose ps
 
 # 查看日志（排查问题）
-docker-compose logs -f
+docker compose logs -f
 ```
 
 ---
@@ -172,13 +172,13 @@ docker-compose logs -f
 
 ```bash
 # 数据库迁移
-docker-compose exec backend python manage.py migrate
+docker compose exec backend python manage.py migrate
 
 # 创建演示数据（可选）
-docker-compose exec backend python manage.py seed_demo
+docker compose exec backend python manage.py seed_demo
 
 # 创建管理员账号
-docker-compose exec backend python manage.py createsuperuser
+docker compose exec backend python manage.py createsuperuser
 ```
 
 ---
@@ -188,7 +188,7 @@ docker-compose exec backend python manage.py createsuperuser
 ### 1. 检查容器状态
 
 ```bash
-docker-compose ps
+docker compose ps
 # 应显示两个容器都是 Up 状态
 ```
 
@@ -220,7 +220,7 @@ curl http://localhost:5173/api/health/
 
 ```bash
 # 检查后端容器日志
-docker-compose logs backend
+docker compose logs backend
 
 # 检查 CORS 配置
 cat backend/.env | grep CORS_ALLOWED_ORIGINS
@@ -238,7 +238,7 @@ cat backend/.env | grep CORS_ALLOWED_ORIGINS
 cat backend/.env | grep MYSQL
 
 # 测试从容器连接 MySQL
-docker-compose exec backend python -c "
+docker compose exec backend python -c "
 import pymysql
 conn = pymysql.connect(host='host.docker.internal', user='你的用户', password='你的密码', database='flowdesk')
 print('连接成功')
@@ -251,7 +251,7 @@ vim backend/.env
 
 ### 问题 3：端口被占用
 
-**症状**：docker-compose up 报端口冲突
+**症状**：docker compose up 报端口冲突
 
 **解决**：
 
@@ -259,7 +259,7 @@ vim backend/.env
 # 查看占用端口的进程
 netstat -tlnp | grep 5173
 
-# 停止占用进程或修改 docker-compose.yml 端口
+# 停止占用进程或修改 docker compose.yml 端口
 ```
 
 ### 问题 4：静态文件 404
@@ -270,11 +270,11 @@ netstat -tlnp | grep 5173
 
 ```bash
 # 检查前端容器是否正常构建
-docker-compose logs frontend
+docker compose logs frontend
 
 # 重新构建前端
-docker-compose build frontend --no-cache
-docker-compose up -d frontend
+docker compose build frontend --no-cache
+docker compose up -d frontend
 ```
 
 ---
@@ -283,28 +283,28 @@ docker-compose up -d frontend
 
 ```bash
 # 启动
-docker-compose up -d
+docker compose up -d
 
 # 停止
-docker-compose down
+docker compose down
 
 # 重启
-docker-compose restart
+docker compose restart
 
 # 查看日志
-docker-compose logs -f
-docker-compose logs -f backend  # 只看后端
-docker-compose logs -f frontend # 只看前端
+docker compose logs -f
+docker compose logs -f backend  # 只看后端
+docker compose logs -f frontend # 只看前端
 
 # 重新构建并启动（代码更新后）
-docker-compose up -d --build
+docker compose up -d --build
 
 # 进入容器调试
-docker-compose exec backend bash
-docker-compose exec frontend sh
+docker compose exec backend bash
+docker compose exec frontend sh
 
 # 查看容器状态
-docker-compose ps
+docker compose ps
 ```
 
 ---
@@ -318,10 +318,16 @@ docker-compose ps
 git pull
 
 # 重新构建并启动
-docker-compose up -d --build
+docker compose up -d --build
+
+# 只更新后端代码 → 只重建后端                                   
+  docker compose build backend && docker compose up -d backend                                                                                           
+                                                                                                                                                         
+  # 只更新前端代码 → 只重建前端                                                                                                                          
+  docker compose build frontend && docker compose up -d frontend 
 
 # 如果有数据库变更，执行迁移
-docker-compose exec backend python manage.py migrate
+docker compose exec backend python manage.py migrate
 ```
 
 ---
@@ -331,7 +337,14 @@ docker-compose exec backend python manage.py migrate
 | 配置项 | 文件位置 | 必须配置 |
 |--------|----------|----------|
 | Django 密钥、数据库连接 | `backend/.env` | **是** |
-| 端口映射 | `docker-compose.yml` | 可选（默认 5173/8001） |
+| 端口映射 | `docker compose.yml` | 可选（默认 5173/8001） |
 | nginx 反向代理 | `nginx.conf` | 无需修改 |
 | 防火墙端口 | 系统配置 | **是**（开放 5173） |
 | MySQL 数据库 | MySQL 服务 | **是**（创建 flowdesk 数据库） |
+
+
+Docker 部署后，执行：                                                                                                                                  
+                                                                                                                                                         
+  docker compose exec backend python manage.py createsuperuser                                                                                           
+                                                                                                                                                         
+  按提示输入用户名、邮箱、密码即可。 

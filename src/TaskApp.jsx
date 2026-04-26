@@ -599,8 +599,7 @@ export default function TaskApp() {
 }
 
 function AuthScreen({ onAuthed }) {
-  const [mode, setMode] = useState('login');
-  const [form, setForm] = useState({ username: 'demo', password: 'demo123456', display_name: '' });
+  const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const desktop = isDesktopApp();
@@ -670,7 +669,7 @@ function AuthScreen({ onAuthed }) {
     setLoading(true);
     setError('');
     try {
-      const data = mode === 'login' ? await api.login(form) : await api.register(form);
+      const data = await api.login(form);
       setToken(data.token);
       onAuthed(data.user);
     } catch (err) {
@@ -769,34 +768,6 @@ function AuthScreen({ onAuthed }) {
             </div>
           )}
 
-          <div className="mb-6 inline-flex rounded-[10px] border border-[var(--app-border)] p-1">
-            {[
-              ['login', '登录'],
-              ['register', '注册'],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setMode(value)}
-                className={`h-9 rounded-[8px] px-4 text-sm font-medium ${mode === value ? 'bg-[var(--app-text)] text-[var(--app-panel)]' : 'text-[var(--app-muted)]'}`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'register' && (
-            <label className="mb-4 block">
-              <span className="text-sm font-medium">显示名称</span>
-              <input
-                value={form.display_name}
-                onChange={(event) => setForm({ ...form, display_name: event.target.value })}
-                className="mt-2 h-10 w-full rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-sm outline-none transition-colors focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[var(--app-primary)]/10"
-                placeholder="例如：周岚"
-              />
-            </label>
-          )}
-
           <label className="mb-4 block">
             <span className="text-sm font-medium">用户名</span>
             <input
@@ -816,9 +787,8 @@ function AuthScreen({ onAuthed }) {
           </label>
           {error && <div className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</div>}
           <button disabled={loading || !apiConfigured} className="h-10 w-full rounded-[8px] bg-[var(--app-primary)] text-sm font-semibold text-white transition-colors disabled:opacity-60 hover:bg-[var(--app-primary-strong)]">
-            {!apiConfigured ? '先配置服务器' : loading ? '处理中...' : mode === 'login' ? '登录' : '注册'}
+            {!apiConfigured ? '先配置服务器' : loading ? '登录中...' : '登录'}
           </button>
-          <p className="mt-4 text-xs text-[var(--app-muted)]">演示账号：demo / demo123456。先运行后端 seed 命令生成。</p>
         </form>
       </div>
     </div>
