@@ -1,5 +1,5 @@
 from .view_modules.auth_views import HealthView, LoginView, MeView, RegisterView
-from .view_modules.notification_views import TaskNotificationListView, TaskNotificationReadView
+from .view_modules.notification_views import TaskNotificationListView, TaskNotificationReadView, TaskNotificationMarkAllReadView
 from .view_modules.organization_views import (
     DepartmentActivateView,
     DepartmentCreateView,

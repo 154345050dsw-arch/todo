@@ -8,6 +8,7 @@ export default function WorkspaceTopBar({
   notifications,
   onToggleNotifications,
   onOpenNotificationTask,
+  onMarkAllRead,
   formatActivityTime,
   onCreate,
   createButtonRef,
@@ -38,6 +39,7 @@ export default function WorkspaceTopBar({
           data={notifications}
           onToggle={onToggleNotifications}
           onOpenTask={onOpenNotificationTask}
+          onMarkAllRead={onMarkAllRead}
           formatActivityTime={formatActivityTime}
         />
 

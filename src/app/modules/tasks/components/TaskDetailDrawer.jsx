@@ -5,9 +5,11 @@ import {
   ArrowRightLeft,
   BellRing,
   Bold,
+  Calendar,
   Check,
   CheckCircle2,
   ChevronDown,
+  Edit3,
   ImagePlus,
   Italic,
   Link2,
@@ -17,8 +19,8 @@ import {
   X,
   XCircle,
 } from 'lucide-react';
+import { ReminderModal } from './TaskModals.jsx';
 import { api } from '../../../../api.js';
-import { RemindActionButton } from './TaskBoard.jsx';
 import { DeadlineDisplay, DurationAnalysis, FlowSummary, TaskContentSection } from './TaskDetailViews.jsx';
 
 function canPerformAction(task, action) {
@@ -100,7 +102,6 @@ export default function TaskDetailDrawer({
   user,
   onClose,
   onRefresh,
-  onRemind,
   statusLabels,
   statusTone,
   completedStatusTone,
@@ -109,7 +110,6 @@ export default function TaskDetailDrawer({
   displayUser,
   sameUser,
   reminderTargetForTask,
-  reminderButtonLabel,
   canRemindTask,
   isTaskOverdue,
   formatFullDateTime,
@@ -123,11 +123,10 @@ export default function TaskDetailDrawer({
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
   const [showTransferDialog, setShowTransferDialog] = useState(false);
-  const [showRemindDialog, setShowRemindDialog] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
   const [showTransferPicker, setShowTransferPicker] = useState(false);
   const [completionNote, setCompletionNote] = useState('');
   const [transferNote, setTransferNote] = useState('');
-  const [remindNote, setRemindNote] = useState('请尽快处理该任务');
   const [selectedTransferUser, setSelectedTransferUser] = useState(null);
   const [showReworkDialog, setShowReworkDialog] = useState(false);
   const [reworkReason, setReworkReason] = useState('');
@@ -137,6 +136,9 @@ export default function TaskDetailDrawer({
     timeline: true,
     comments: false,
   });
+  const [editingDue, setEditingDue] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('23:59');
 
   useEffect(() => {
     setComment('');
@@ -145,16 +147,24 @@ export default function TaskDetailDrawer({
     setCancelReason('');
     setShowCompletionDialog(false);
     setShowTransferDialog(false);
-    setShowRemindDialog(false);
     setShowReworkDialog(false);
     setCompletionNote('');
     setTransferNote('');
-    setRemindNote('请尽快处理该任务');
     setReworkReason('');
     setSelectedTransferUser(null);
     setSelectedReworkUser(null);
     setExpandedSections({ info: false, timeline: true, comments: false });
-  }, [task?.id]);
+    setEditingDue(false);
+    if (task?.due_at) {
+      const due = new Date(task.due_at);
+      setDueDate(due.toISOString().slice(0, 10));
+      setDueTime(due.toTimeString().slice(0, 5));
+    } else {
+      const today = new Date();
+      setDueDate(today.toISOString().slice(0, 10));
+      setDueTime('23:59');
+    }
+  }, [task?.id, task?.due_at]);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -168,11 +178,6 @@ export default function TaskDetailDrawer({
           setShowTransferDialog(false);
           setTransferNote('');
           setSelectedTransferUser(null);
-          return;
-        }
-        if (showRemindDialog) {
-          setShowRemindDialog(false);
-          setRemindNote('请尽快处理该任务');
           return;
         }
         if (showCancelDialog) {
@@ -198,7 +203,7 @@ export default function TaskDetailDrawer({
       return () => window.removeEventListener('keydown', handleKeyDown);
     }
     return undefined;
-  }, [open, showCompletionDialog, showTransferDialog, showRemindDialog, showCancelDialog, showTransferPicker, onClose]);
+  }, [open, showCompletionDialog, showTransferDialog, showCancelDialog, showTransferPicker, onClose]);
 
   async function runAction(payload) {
     if (!task) return;
@@ -230,17 +235,6 @@ export default function TaskDetailDrawer({
   const taskIsOverdue = task ? isTaskOverdue(task) : false;
   const isCancelPending = task?.status === 'cancel_pending';
   const needsCompletionNote = primaryAction?.payload?.action === 'confirm_complete' && task?.status === 'in_progress';
-  const remindTargets = reminderTargetForTask(task);
-  const remindTargetList = Array.isArray(remindTargets) ? remindTargets : remindTargets ? [remindTargets] : [];
-  const remindTargetText = remindTargetList.map((target) => displayUser(target)).join('、');
-  const DetailRemindActionButton = (props) => (
-    <RemindActionButton
-      {...props}
-      canRemindTask={canRemindTask}
-      isTaskOverdue={isTaskOverdue}
-      reminderButtonLabel={reminderButtonLabel}
-    />
-  );
 
   async function handleConfirmComplete() {
     const noteText = completionNote.replace(/<[^>]*>/g, '').trim();
@@ -270,14 +264,11 @@ export default function TaskDetailDrawer({
     }
   }
 
-  async function handleRemind() {
-    const noteText = remindNote.replace(/<[^>]*>/g, '').trim();
-    if (!noteText) return;
+  async function handleRemind(_, remark) {
+    if (!remark?.trim()) return;
     setSaving(true);
     try {
-      await api.remindTask(task.id, { note: remindNote });
-      setShowRemindDialog(false);
-      setRemindNote('请尽快处理该任务');
+      await api.remindTask(task.id, { remark });
       await onRefresh(task.id);
     } finally {
       setSaving(false);
@@ -336,6 +327,22 @@ export default function TaskDetailDrawer({
     }
   }
 
+  async function handleSaveDue() {
+    if (!dueDate) {
+      setEditingDue(false);
+      return;
+    }
+    setSaving(true);
+    try {
+      const newDueAt = new Date(`${dueDate}T${dueTime}:00`).toISOString();
+      await api.patchTask(task.id, { due_at: newDueAt });
+      setEditingDue(false);
+      await onRefresh(task.id);
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <aside
       className={`fixed inset-y-0 right-0 z-20 w-[min(540px,42vw)] min-w-[480px] max-w-[calc(100vw-300px)] bg-[var(--app-panel)] shadow-[-18px_0_38px_rgba(17,24,39,0.10)] transition-transform duration-300 dark:shadow-[-18px_0_38px_rgba(0,0,0,0.35)] ${
@@ -366,9 +373,64 @@ export default function TaskDetailDrawer({
               </span>
             </div>
 
-            {task.due_at && (
-              <div className="mt-4">
+            {editingDue ? (
+              <div className="mt-4 flex items-center gap-2">
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                  className="h-9 w-[140px] rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-[14px] outline-none focus:border-[var(--app-primary)]"
+                />
+                <input
+                  type="time"
+                  value={dueTime}
+                  onChange={(e) => setDueTime(e.target.value)}
+                  className="h-9 w-[100px] rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-[14px] outline-none focus:border-[var(--app-primary)]"
+                />
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={handleSaveDue}
+                  className="h-9 rounded-[8px] bg-[var(--app-primary)] px-3 text-[14px] font-medium text-white hover:bg-[var(--app-primary-strong)] disabled:opacity-60"
+                >
+                  {saving ? '保存中...' : '保存'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingDue(false)}
+                  className="h-9 rounded-[8px] border border-[var(--app-border)] px-3 text-[14px] text-[var(--app-muted)] hover:text-[var(--app-text)]"
+                >
+                  取消
+                </button>
+              </div>
+            ) : task.due_at ? (
+              <div className="mt-4 flex items-center gap-2">
                 <DeadlineDisplay dueAt={task.due_at} isOverdue={task.is_overdue} getDeadlineUrgency={getDeadlineUrgency} />
+                {!isClosed && !isContentLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDue(true)}
+                    className="grid size-8 place-items-center rounded-[8px] text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-primary)]"
+                  >
+                    <Edit3 size={14} strokeWidth={1.5} />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-4 flex items-center gap-2">
+                <span className="inline-flex items-center gap-2 rounded-lg border border-[var(--app-border)] bg-[var(--app-panel-soft)] px-3.5 py-2 text-[15px] text-[var(--app-muted)]">
+                  <Calendar size={16} strokeWidth={1.5} />
+                  未设置截止时间
+                </span>
+                {!isClosed && !isContentLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingDue(true)}
+                    className="grid size-8 place-items-center rounded-[8px] text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-primary)]"
+                  >
+                    <Edit3 size={14} strokeWidth={1.5} />
+                  </button>
+                )}
               </div>
             )}
 
@@ -521,7 +583,7 @@ export default function TaskDetailDrawer({
                       type="button"
                       onClick={() => {
                         if (!canRemindTask(task, user).can) return;
-                        setShowRemindDialog(true);
+                        setShowReminderModal(true);
                       }}
                       className={`h-11 shrink-0 rounded-xl border px-4 text-[15px] font-medium transition-all shadow-sm ${
                         !canRemindTask(task, user).can
@@ -635,28 +697,14 @@ export default function TaskDetailDrawer({
             }}
           />
 
-          <RichTextModal
-            open={showRemindDialog}
-            onClose={() => { setShowRemindDialog(false); setRemindNote('请尽快处理该任务'); }}
+          <ReminderModal
+            open={showReminderModal}
+            task={task}
+            onClose={() => setShowReminderModal(false)}
             onSubmit={handleRemind}
-            value={remindNote}
-            onChange={setRemindNote}
-            saving={saving}
-            config={{
-              icon: BellRing,
-              title: '催办说明',
-              targetInfo: remindTargetText,
-              senderInfo: displayUser(user),
-              taskTitle: task?.title,
-              dueAt: task?.due_at ? formatFullDateTime(task.due_at) : '未设置',
-              hint: '请填写催办说明（必填），支持富文本格式',
-              placeholder: '请尽快处理该任务',
-              submitLabel: '发送催办',
-              color: {
-                text: 'text-amber-600 dark:text-amber-400',
-                button: 'bg-amber-600 hover:bg-amber-700 shadow-md text-white',
-              },
-            }}
+            reminderTargetForTask={reminderTargetForTask}
+            displayUser={displayUser}
+            formatFullDateTime={formatFullDateTime}
           />
 
           <RichTextModal
@@ -705,8 +753,6 @@ export default function TaskDetailDrawer({
               <FlowSummary
                 task={task}
                 records={task.events || []}
-                onRemind={onRemind}
-                user={user}
                 Badge={Badge}
                 badgeClass={badgeClass}
                 displayUser={displayUser}
@@ -715,7 +761,6 @@ export default function TaskDetailDrawer({
                 statusLabels={statusLabels}
                 completedStatusTone={completedStatusTone}
                 flowPendingStatusTone={flowPendingStatusTone}
-                RemindActionButton={DetailRemindActionButton}
               />
             </CollapsibleSection>
 

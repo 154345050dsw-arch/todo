@@ -103,6 +103,15 @@ export function useNotifications({
     await openTask(notification.task.id);
   }, [openTask, refreshNotifications, setError]);
 
+  const markAllRead = useCallback(async () => {
+    try {
+      await api.markAllNotificationsRead();
+      await refreshNotifications({ limit: 20 });
+    } catch (err) {
+      setError(err.message);
+    }
+  }, [refreshNotifications, setError]);
+
   return {
     closeNotificationToast,
     notifications,
@@ -116,5 +125,6 @@ export function useNotifications({
       notificationsData.results.forEach((n) => shownToastIdsRef.current.add(n.id));
       return notificationsData;
     }, [setNotifications]),
+    markAllRead,
   };
 }

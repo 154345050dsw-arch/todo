@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileCheck2, RefreshCw, Search, X } from 'lucide-react';
+import { BellRing, Bold, Check, FileCheck2, ImagePlus, Italic, Link2, List, RefreshCw, Search, X } from 'lucide-react';
 
 export function ReminderModal({
   open,
@@ -9,23 +9,33 @@ export function ReminderModal({
   onSubmit,
   reminderTargetForTask,
   displayUser,
-  reminderButtonLabel,
-  dueMeta,
   formatFullDateTime,
 }) {
-  const [remark, setRemark] = useState('请尽快处理该任务');
+  const editorRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const linkInputRef = useRef(null);
+  const savedRangeRef = useRef(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const initializedRef = useRef(false);
   const rawTargets = reminderTargetForTask(task);
   const targetList = Array.isArray(rawTargets) ? rawTargets : rawTargets ? [rawTargets] : [];
   const targetsText = targetList.map((target) => displayUser(target)).join('、');
 
   useEffect(() => {
-    if (open) {
-      setRemark('请尽快处理该任务');
+    if (!open) {
+      initializedRef.current = false;
+      setLinkOpen(false);
+      setLinkUrl('');
       setError('');
       setSaving(false);
+      return;
     }
+    if (!editorRef.current || initializedRef.current) return;
+    editorRef.current.innerHTML = '请尽快处理该任务';
+    initializedRef.current = true;
   }, [open, task?.id]);
 
   useEffect(() => {
@@ -40,19 +50,105 @@ export function ReminderModal({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [open, onClose]);
 
-  if (!open || !task) return null;
+  function syncValue() {
+    return editorRef.current?.innerHTML || '';
+  }
+
+  function runCommand(command) {
+    editorRef.current?.focus();
+    document.execCommand(command, false, null);
+  }
+
+  function rememberSelection() {
+    const selection = window.getSelection();
+    const anchorNode = selection?.anchorNode;
+    if (!selection?.rangeCount || !anchorNode || !editorRef.current?.contains(anchorNode)) return;
+    savedRangeRef.current = selection.getRangeAt(0).cloneRange();
+  }
+
+  function restoreSelection() {
+    editorRef.current?.focus();
+    if (!savedRangeRef.current) return;
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(savedRangeRef.current);
+  }
+
+  function normalizeLinkUrl(url) {
+    const trimmed = url.trim();
+    if (!trimmed) return '';
+    return /^(https?:\/\/|mailto:|tel:|#|\/)/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  }
+
+  function insertImage(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      editorRef.current?.focus();
+      document.execCommand('insertHTML', false, `<img src="${reader.result}" alt="图片">`);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function openLinkEditor() {
+    rememberSelection();
+    setLinkOpen(true);
+    requestAnimationFrame(() => linkInputRef.current?.focus());
+  }
+
+  function closeLinkEditor() {
+    setLinkOpen(false);
+    setLinkUrl('');
+  }
+
+  function applyLink() {
+    const normalizedUrl = normalizeLinkUrl(linkUrl);
+    if (!normalizedUrl) return;
+    restoreSelection();
+    const selection = window.getSelection();
+    const hasSelectedText = selection?.rangeCount && !selection.isCollapsed && editorRef.current?.contains(selection.anchorNode);
+    if (hasSelectedText) {
+      document.execCommand('createLink', false, normalizedUrl);
+    } else {
+      const anchor = document.createElement('a');
+      anchor.href = normalizedUrl;
+      anchor.textContent = linkUrl.trim();
+      document.execCommand('insertHTML', false, anchor.outerHTML);
+    }
+    closeLinkEditor();
+  }
+
+  function handleLinkKeyDown(event) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyLink();
+    }
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeLinkEditor();
+      editorRef.current?.focus();
+    }
+  }
 
   async function submit() {
+    const remark = syncValue().replace(/<[^>]*>/g, '').trim();
+    if (!remark) {
+      setError('请填写催办说明');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
-      await onSubmit(task, remark.trim() || '请尽快处理该任务');
+      await onSubmit(task, syncValue());
+      onClose();
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
     }
   }
+
+  if (!open || !task) return null;
 
   return createPortal(
     <div
@@ -62,68 +158,134 @@ export function ReminderModal({
       onMouseDown={onClose}
     >
       <div
-        className="w-full max-w-[440px] rounded-[16px] border border-[var(--app-border)] bg-[var(--app-panel)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] animate-modalPop"
+        className="w-full max-w-md rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] shadow-[0_24px_80px_rgba(15,23,42,0.24)] animate-modalPop"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-[var(--app-border)] px-5 py-4">
-          <div>
-            <h2 className="text-[18px] font-semibold text-[var(--app-text)]">催办当前责任人</h2>
-            <p className="mt-1 text-[13px] text-[var(--app-muted)]">{reminderButtonLabel(task)}会通知当前流程节点负责人</p>
+        <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-4">
+          <div className="flex items-center gap-2 text-base font-semibold text-amber-600 dark:text-amber-400">
+            <BellRing size={20} />
+            催办说明
           </div>
-          <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-[8px] text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)]" aria-label="关闭催办弹窗">
-            <X size={16} strokeWidth={1.6} />
+          <button onClick={onClose} className="grid size-8 place-items-center rounded-lg text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]">
+            <X size={18} />
           </button>
         </div>
 
-        <div className="space-y-3 px-5 py-4">
-          <div className="grid gap-2 rounded-[12px] border border-[var(--app-border)] bg-[var(--app-bg)] p-3 text-[14px]">
-            <div className="flex justify-between gap-4">
-              <span className="shrink-0 text-[var(--app-muted)]">被催办人</span>
-              <span className="min-w-0 truncate font-medium text-[var(--app-text)]">{targetsText}</span>
+        <div className="px-5 py-4">
+          <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-700/50 dark:bg-amber-900/30">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-amber-700 dark:text-amber-400">催办对象：</span>
+              <span className="font-medium text-amber-800 dark:text-amber-300">{targetsText}</span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="shrink-0 text-[var(--app-muted)]">任务标题</span>
-              <span className="min-w-0 truncate font-medium text-[var(--app-text)]">{task.title}</span>
+            <div className="mt-1.5 flex items-center gap-2 text-sm">
+              <span className="text-amber-700 dark:text-amber-400">任务标题：</span>
+              <span className="truncate font-medium text-amber-800 dark:text-amber-300">{task?.title}</span>
             </div>
-            <div className="flex justify-between gap-4">
-              <span className="shrink-0 text-[var(--app-muted)]">截止时间</span>
-              <span className={`min-w-0 truncate font-medium ${dueMeta(task).className}`}>{task.due_at ? formatFullDateTime(task.due_at) : '未设置'}</span>
+            <div className="mt-1.5 flex items-center gap-2 text-sm">
+              <span className="text-amber-700 dark:text-amber-400">截止时间：</span>
+              <span className="font-medium text-amber-800 dark:text-amber-300">{task?.due_at ? formatFullDateTime(task.due_at) : '未设置'}</span>
             </div>
           </div>
+          <p className="mb-3 text-xs text-[var(--app-muted)]">请填写催办说明（必填），支持富文本格式</p>
 
-          <label className="block">
-            <span className="text-[13px] font-medium text-[var(--app-muted)]">催办说明</span>
-            <textarea
-              value={remark}
-              onChange={(event) => setRemark(event.target.value)}
-              className="mt-2 min-h-[96px] w-full resize-none rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2.5 text-[15px] outline-none transition-colors focus:border-[var(--app-primary)]"
-              placeholder="请输入催办说明，可选"
-            />
-          </label>
+          <div className="relative mb-2 flex items-center gap-1 rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] p-1">
+            {[
+              ['bold', Bold, '加粗'],
+              ['italic', Italic, '斜体'],
+              ['insertUnorderedList', List, '列表'],
+            ].map(([command, CmdIcon, label]) => (
+              <button
+                key={command}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => runCommand(command)}
+                className="grid size-7 place-items-center rounded-md text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]"
+                title={label}
+              >
+                <CmdIcon size={14} />
+              </button>
+            ))}
+            <button
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={openLinkEditor}
+              className={`grid size-7 place-items-center rounded-md transition ${
+                linkOpen ? 'bg-[var(--app-primary)]/10 text-[var(--app-primary)]' : 'text-[var(--app-muted)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]'
+              }`}
+              title="插入链接"
+            >
+              <Link2 size={14} />
+            </button>
+            <button
+              type="button"
+              onClick={() => imageInputRef.current?.click()}
+              className="grid size-7 place-items-center rounded-md text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]"
+              title="插入图片"
+            >
+              <ImagePlus size={14} />
+            </button>
+            <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => insertImage(event.target.files?.[0])} />
+
+            {linkOpen && (
+              <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[260px] rounded-lg border border-[var(--app-border)] bg-[var(--app-panel)] p-2 shadow-lg">
+                <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-[var(--app-text)]">
+                  <span className="grid size-5 place-items-center rounded bg-[var(--app-primary)]/10 text-[var(--app-primary)]">
+                    <Link2 size={12} />
+                  </span>
+                  链接地址
+                </div>
+                <div className="flex items-center gap-1.5 rounded-md border border-[var(--app-border)] bg-[var(--app-bg)] px-2 py-1.5 focus-within:border-[var(--app-primary)]">
+                  <input
+                    ref={linkInputRef}
+                    value={linkUrl}
+                    onChange={(event) => setLinkUrl(event.target.value)}
+                    onKeyDown={handleLinkKeyDown}
+                    placeholder="https://..."
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                    autoComplete="off"
+                  />
+                  <button
+                    type="button"
+                    disabled={!linkUrl.trim()}
+                    onClick={applyLink}
+                    className="grid size-6 place-items-center rounded bg-[var(--app-primary)] text-white disabled:bg-[var(--app-panel-soft)] disabled:text-[var(--app-subtle)]"
+                  >
+                    <Check size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div
+            ref={editorRef}
+            className="task-rich-text min-h-[120px] rounded-lg border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2.5 text-sm leading-6 outline-none focus:border-[var(--app-primary)]"
+            contentEditable
+            suppressContentEditableWarning
+            role="textbox"
+            data-placeholder="请尽快处理该任务"
+          />
 
           {error && (
-            <div className="rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
+            <div className="mt-2 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-600 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300">
               {error}
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-[var(--app-border)] px-5 py-4">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="h-10 rounded-[10px] border border-[var(--app-border)] px-4 text-[14px] font-medium text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] disabled:opacity-60"
-          >
+        <div className="flex justify-end gap-2.5 border-t border-[var(--app-border)] px-5 py-4">
+          <button onClick={onClose} className="h-9 rounded-lg border border-[var(--app-border)] px-4 text-sm font-medium text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)]">
             取消
           </button>
           <button
-            type="button"
             onClick={submit}
             disabled={saving || targetList.length === 0}
-            className="h-10 rounded-[10px] bg-[var(--app-text)] px-4 text-[14px] font-medium text-[var(--app-panel)] transition-opacity disabled:opacity-50"
+            className="h-9 rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition-all hover:bg-amber-700 shadow-md disabled:opacity-50"
           >
-            {saving ? '发送中...' : '确认发送'}
+            <span className="flex items-center gap-1.5">
+              <BellRing size={15} />
+              {saving ? '提交中...' : '发送催办'}
+            </span>
           </button>
         </div>
       </div>

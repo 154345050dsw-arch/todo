@@ -5,8 +5,6 @@ import { ChevronRight, Clock, Lock, X } from 'lucide-react';
 export function FlowSummary({
   task,
   records,
-  onRemind,
-  user,
   Badge,
   badgeClass,
   displayUser,
@@ -15,7 +13,6 @@ export function FlowSummary({
   statusLabels,
   completedStatusTone,
   flowPendingStatusTone,
-  RemindActionButton,
 }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const flow = useMemo(
@@ -77,12 +74,9 @@ export function FlowSummary({
         onClose={() => setDetailOpen(false)}
         task={task}
         flow={flow}
-        onRemind={onRemind}
-        user={user}
         displayUser={displayUser}
         formatActivityTime={formatActivityTime}
         formatDateTime={formatDateTime}
-        RemindActionButton={RemindActionButton}
       />
     </>
   );
@@ -543,12 +537,9 @@ function FlowDetailModal({
   onClose,
   task,
   flow,
-  onRemind,
-  user,
   displayUser,
   formatActivityTime,
   formatDateTime,
-  RemindActionButton,
 }) {
   const trackMeta = useMemo(() => flowTrackMeta(flow, displayUser), [flow, displayUser]);
 
@@ -601,7 +592,7 @@ function FlowDetailModal({
         </div>
 
         <div className="min-h-0 overflow-y-auto px-6 py-5">
-          <FlowCanvas flow={flow} task={task} onRemind={onRemind} user={user} displayUser={displayUser} formatActivityTime={formatActivityTime} formatDateTime={formatDateTime} RemindActionButton={RemindActionButton} />
+          <FlowCanvas flow={flow} task={task} displayUser={displayUser} formatActivityTime={formatActivityTime} formatDateTime={formatDateTime} />
           <ReminderDetailList reminders={task?.reminders || []} displayUser={displayUser} formatDateTime={formatDateTime} />
         </div>
       </div>
@@ -639,7 +630,7 @@ function ReminderDetailList({ reminders, displayUser, formatDateTime }) {
   );
 }
 
-function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTime, formatDateTime, RemindActionButton }) {
+function FlowCanvas({ flow, task, displayUser, formatActivityTime, formatDateTime }) {
   const actorGraph = buildFlowActorGraph(flow, { displayUser, formatDateTime });
   const actorNodes = actorGraph.nodes;
   const actorEdges = actorGraph.edges;
@@ -872,7 +863,6 @@ function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTim
                       催办 {reminderCount} 次{task?.latest_reminder_at ? ` · 最近 ${formatActivityTime(task.latest_reminder_at)}` : ''}
                     </div>
                   )}
-                  <RemindActionButton task={task} onRemind={onRemind} user={user} />
                 </div>
               )}
             </div>

@@ -181,6 +181,15 @@ export function useTasks({
     setDrawerOpen(true);
   }, []);
 
+  const patchTask = useCallback(async (taskId, payload) => {
+    const updatedTask = await api.patchTask(taskId, payload);
+    if (detail?.id === updatedTask.id) {
+      setDetail(updatedTask);
+    }
+    await loadData();
+    return updatedTask;
+  }, [detail?.id, loadData]);
+
   const openSearchResult = useCallback(async (task) => {
     const nextScope = scopeForTask(task, user, scope);
     setWorkspaceMode('tasks');
@@ -237,6 +246,7 @@ export function useTasks({
     openReminder,
     openSearchResult,
     openTask,
+    patchTask,
     refreshDetail,
     reminderModal,
     scope,

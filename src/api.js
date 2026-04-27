@@ -24,6 +24,9 @@ export const api = {
   me() {
     return apiRequest('/api/auth/me/');
   },
+  markAllNotificationsRead() {
+    return apiRequest('/api/notifications/read-all/', { method: 'POST', body: JSON.stringify({}) });
+  },
   ...statisticsService,
   ...taskService,
   ...notificationService,

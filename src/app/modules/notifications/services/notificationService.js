@@ -7,4 +7,7 @@ export const notificationService = {
   markNotificationRead(id) {
     return apiRequest(`/api/notifications/${id}/read/`, { method: 'POST', body: JSON.stringify({}) });
   },
+  markAllNotificationsRead() {
+    return apiRequest('/api/notifications/read-all/', { method: 'POST', body: JSON.stringify({}) });
+  },
 };

@@ -33,3 +33,9 @@ class TaskNotificationReadView(APIView):
             notification.save(update_fields=["is_read"])
         return Response(TaskNotificationSerializer(notification).data)
 
+
+class TaskNotificationMarkAllReadView(APIView):
+    def post(self, request):
+        updated = TaskNotification.objects.filter(recipient=request.user, is_read=False).update(is_read=True)
+        return Response({"marked_count": updated})
+

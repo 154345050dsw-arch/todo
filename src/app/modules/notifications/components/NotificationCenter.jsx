@@ -5,6 +5,7 @@ import {
   ArrowRightCircle,
   Bell,
   BellRing,
+  Check,
   CheckCircle2,
   X,
   XCircle,
@@ -96,7 +97,7 @@ export function ToastContainer({ toasts, onClose, onOpenTask }) {
   );
 }
 
-export function NotificationMenu({ open, data, onToggle, onOpenTask, formatActivityTime }) {
+export function NotificationMenu({ open, data, onToggle, onOpenTask, onMarkAllRead, formatActivityTime }) {
   const items = data?.results || [];
   const unreadCount = data?.unread_count || 0;
 
@@ -123,7 +124,22 @@ export function NotificationMenu({ open, data, onToggle, onOpenTask, formatActiv
               <div className="text-[15px] font-semibold text-[var(--app-text)]">站内通知</div>
               <div className="text-[12px] text-[var(--app-muted)]">{unreadCount ? `${unreadCount} 条未读` : '暂无未读'}</div>
             </div>
-            <BellRing size={16} className="text-[var(--app-muted)]" strokeWidth={1.6} />
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onMarkAllRead();
+                    onToggle();
+                  }}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-[6px] border border-[var(--app-border)] bg-[var(--app-bg)] px-2.5 text-[12px] font-medium text-[var(--app-muted)] transition-colors hover:border-[var(--app-primary)]/30 hover:text-[var(--app-primary)]"
+                >
+                  <Check size={12} strokeWidth={1.5} />
+                  一键已读
+                </button>
+              )}
+              <BellRing size={16} className="text-[var(--app-muted)]" strokeWidth={1.6} />
+            </div>
           </div>
           <div className="max-h-[420px] overflow-y-auto p-1.5">
             {items.length ? items.map((item) => (

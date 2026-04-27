@@ -458,6 +458,7 @@ function Workspace({ user, onLogout }) {
     openNotificationTask,
     openNotificationTaskWithToast,
     refreshAndMarkShown,
+    markAllRead,
   } = useNotifications({
     notifications,
     openTask,
@@ -562,6 +563,7 @@ function Workspace({ user, onLogout }) {
               setUserMenuOpen(false);
             }}
             onOpenNotificationTask={openNotificationTask}
+            onMarkAllRead={markAllRead}
             formatActivityTime={formatActivityTime}
             onCreate={() => setCreateOpen(true)}
             createButtonRef={createButtonRef}
@@ -668,7 +670,6 @@ function Workspace({ user, onLogout }) {
               user={user}
               onClose={() => setDrawerOpen(false)}
               onRefresh={refreshDetail}
-              onRemind={openReminder}
               statusLabels={statusLabels}
               statusTone={statusTone}
               completedStatusTone={completedStatusTone}
@@ -677,7 +678,6 @@ function Workspace({ user, onLogout }) {
               displayUser={displayUser}
               sameUser={sameUser}
               reminderTargetForTask={reminderTargetForTask}
-              reminderButtonLabel={reminderButtonLabel}
               canRemindTask={canRemindTask}
               isTaskOverdue={isTaskOverdue}
               formatFullDateTime={formatFullDateTime}
