@@ -125,6 +125,11 @@ const navGroups = [
 
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
+function isEditableTarget(target) {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.isContentEditable || Boolean(target.closest('input, textarea, select, [contenteditable="true"]'));
+}
+
 export default function TaskApp() {
   const [user, setUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
@@ -470,9 +475,14 @@ function Workspace({ user, onLogout }) {
   // 快捷键支持
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const typingInEditable = isEditableTarget(e.target);
+
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         openSearch();
+        return;
+      }
+      if (typingInEditable) {
         return;
       }
       if (e.key === 'n' && !e.metaKey && !e.ctrlKey && !createOpen && !drawerOpen && !searchOpen) {
