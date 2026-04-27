@@ -19,6 +19,7 @@ from .view_modules.statistics_views import (
     DashboardView,
     DailyActivityStatsView,
     DepartmentStatsView,
+    FrequentOwnersView,
     MetaView,
     PeopleStatsView,
     StatusStatsView,

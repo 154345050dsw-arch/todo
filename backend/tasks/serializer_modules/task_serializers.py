@@ -25,6 +25,7 @@ class TaskListSerializer(serializers.ModelSerializer):
     status_label = serializers.CharField(source="get_status_display", read_only=True)
     priority_label = serializers.CharField(source="get_priority_display", read_only=True)
     current_duration_hours = serializers.SerializerMethodField()
+    processing_duration_hours = serializers.SerializerMethodField()
     flow_count = serializers.SerializerMethodField()
     reminder_count = serializers.SerializerMethodField()
     latest_reminder_at = serializers.SerializerMethodField()
@@ -37,20 +38,24 @@ class TaskListSerializer(serializers.ModelSerializer):
     can_transfer = serializers.SerializerMethodField()
     can_comment = serializers.SerializerMethodField()
     can_confirm_complete = serializers.SerializerMethodField()
+    can_rework = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
         fields = [
             "id", "code", "title", "description", "creator", "owner", "candidate_owners",
             "confirmer", "participants", "department", "status", "status_label", "priority",
-            "priority_label", "due_at", "current_duration_hours", "flow_count", "reminder_count",
+            "priority_label", "due_at", "current_duration_hours", "processing_duration_hours", "flow_count", "reminder_count",
             "latest_reminder_at", "is_overdue", "can_claim", "is_limited_view", "user_roles",
             "can_remind", "can_cancel", "can_transfer", "can_comment", "can_confirm_complete",
-            "created_at", "updated_at",
+            "can_rework", "created_at", "updated_at",
         ]
 
     def get_current_duration_hours(self, obj):
         return current_duration_hours(obj)
+
+    def get_processing_duration_hours(self, obj):
+        return processing_duration_hours(obj)
 
     def get_flow_count(self, obj):
         return getattr(obj, "flow_events_count", None) or obj.events.count()
@@ -105,6 +110,11 @@ class TaskListSerializer(serializers.ModelSerializer):
         user = getattr(request, "user", None)
         return can_perform_action(user, obj, TaskAction.CONFIRM_COMPLETE)
 
+    def get_can_rework(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return can_perform_action(user, obj, TaskAction.REWORK)
+
     def to_representation(self, instance):
         data = super().to_representation(instance)
         data["description"] = sanitize_rich_text(data.get("description", ""))
@@ -121,9 +131,13 @@ class TaskDetailSerializer(TaskListSerializer):
     processing_duration_hours = serializers.SerializerMethodField()
     cancel_reason = serializers.CharField(read_only=True)
     completion_note = serializers.CharField(read_only=True)
+    rework_count = serializers.IntegerField(read_only=True)
+    rework_reason = serializers.CharField(read_only=True)
+    rework_by = UserSerializer(read_only=True)
+    rework_at = serializers.DateTimeField(read_only=True)
 
     class Meta(TaskListSerializer.Meta):
-        fields = TaskListSerializer.Meta.fields + ["events", "comments", "reminders", "duration_analysis", "processing_duration_hours", "cancel_reason", "cancelled_at", "completion_note"]
+        fields = TaskListSerializer.Meta.fields + ["events", "comments", "reminders", "duration_analysis", "processing_duration_hours", "cancel_reason", "cancelled_at", "completion_note", "rework_count", "rework_reason", "rework_by", "rework_at", "owner_completed_at"]
 
     def get_events(self, obj):
         events = list(obj.events.select_related("actor", "from_owner", "to_owner", "from_department", "to_department"))
@@ -166,9 +180,12 @@ class TaskActionSerializer(serializers.Serializer):
     action = serializers.ChoiceField(choices=[
         "change_status", "transfer", "confirm_complete",
         "cancel", "apply_cancel", "confirm_cancel", "reject_cancel", "claim_task",
+        "rework",
     ])
     status = serializers.ChoiceField(choices=Task.Status.choices, required=False)
     owner_id = serializers.IntegerField(required=False)
     department_id = serializers.IntegerField(required=False)
     note = serializers.CharField(max_length=255, required=False, allow_blank=True)
     completion_note = serializers.CharField(required=False, allow_blank=True)
+    rework_reason = serializers.CharField(required=False, allow_blank=False)
+    rework_owner_id = serializers.IntegerField(required=False)

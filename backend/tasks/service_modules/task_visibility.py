@@ -49,12 +49,10 @@ def writable_task_for(user, task):
 def task_scope(queryset, user, scope):
     today = timezone.localdate()
     active_excluded_statuses = [Task.Status.DONE, Task.Status.CANCELLED]
+    # 创建人的活跃任务：排除已完成/已取消，但包含待确认（即使是别人确认的）
+    active_for_creator = queryset.exclude(status__in=active_excluded_statuses)
+    # 责任人的活跃任务：排除待确认/已完成/已取消/待取消确认
     active_for_owner = queryset.exclude(status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING])
-    active_for_creator = queryset.exclude(status__in=active_excluded_statuses).exclude(
-        status=Task.Status.CONFIRMING,
-        confirmer__isnull=True,
-        creator=user,
-    )
 
     schedulable_queryset = active_for_owner.exclude(status=Task.Status.OVERDUE)
     user_owned_queryset = schedulable_queryset.filter(Q(owner=user) | Q(owner__isnull=True, candidate_owners=user))
@@ -62,13 +60,17 @@ def task_scope(queryset, user, scope):
     if scope == "all":
         return queryset
     if scope == "created":
-        return active_for_creator.filter(creator=user)
+        # 我创建的：包含活跃任务 + 我创建的待确认任务 + 我创建的待取消确认任务
+        confirming_created = queryset.filter(status=Task.Status.CONFIRMING, creator=user)
+        cancel_pending_created = queryset.filter(status=Task.Status.CANCEL_PENDING, creator=user)
+        return active_for_creator.filter(creator=user) | confirming_created | cancel_pending_created
     if scope == "participated":
         return active_for_owner.filter(participants=user)
     if scope == "confirming":
         return queryset.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=user) | Q(confirmer__isnull=True, creator=user))
     if scope == "cancel_pending":
-        return queryset.filter(creator=user, status=Task.Status.CANCEL_PENDING)
+        # 待取消确认：创建人的任务 + 认人的任务
+        return queryset.filter(status=Task.Status.CANCEL_PENDING).filter(Q(creator=user) | Q(confirmer=user))
     if scope == "overdue":
         return active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today))
     if scope == "done":
@@ -98,5 +100,7 @@ def task_scope(queryset, user, scope):
         confirming_for_user = queryset.filter(status=Task.Status.CONFIRMING, due_at__date=today).filter(
             Q(owner=user) | Q(confirmer=user) | Q(confirmer__isnull=True, creator=user)
         )
-        return active_today | confirming_for_user
+        # 待取消确认的任务：owner 是当前用户时需要处理
+        cancel_pending_for_user = queryset.filter(status=Task.Status.CANCEL_PENDING, due_at__date=today, owner=user)
+        return active_today | confirming_for_user | cancel_pending_for_user
     return queryset

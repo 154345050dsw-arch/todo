@@ -1,11 +1,41 @@
+import json
 import logging
 
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from django.utils import timezone
 
 from ..models import FlowEvent, Task, TaskNotification, TaskReminder
 from .task_flow import create_flow_event, display_user, format_duration_text
 
 logger = logging.getLogger(__name__)
+
+
+def push_notification_to_user(notification):
+    """通过 WebSocket 实时推送通知给用户"""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.warning("Channel layer is not configured")
+            return
+        # 延迟导入避免循环依赖
+        from ..serializers import TaskNotificationSerializer
+        group_name = f"notifications_{notification.recipient.id}"
+        serializer = TaskNotificationSerializer(notification)
+        # 序列化为 JSON 字符串再解析，确保 datetime 被正确转换
+        data = json.loads(json.dumps(serializer.data, default=str))
+        logger.info(f"Pushing notification to group: {group_name}")
+        async_to_sync(channel_layer.group_send)(
+            group_name,
+            {
+                "type": "notification_message",
+                "data": data,
+            },
+        )
+        logger.info(f"Notification pushed successfully: {notification.id}")
+    except Exception as exc:
+        # Redis 不可用时静默失败，不影响通知创建
+        logger.warning("Failed to push notification via WebSocket: %s", exc)
 
 NOTIFICATION_CONFIGS = {
     TaskNotification.NotificationType.TASK_CREATED: {
@@ -47,6 +77,11 @@ NOTIFICATION_CONFIGS = {
         "title": "任务超时",
         "content_template": "任务已超时：{task_title}",
         "helper_template": "已超时：{timeout_text}",
+    },
+    TaskNotification.NotificationType.TASK_REWORKED: {
+        "title": "任务重办",
+        "content_template": "{actor} 将任务退回重办：{task_title}",
+        "helper_template": "请重新处理",
     },
 }
 
@@ -111,7 +146,7 @@ def create_reminder_notification(reminder):
         f"{display_user(reminder.from_user)}催办你{notification_action_text(reminder.remind_type)}：{reminder.task.title}\n"
         f"{notification_due_text(reminder.task)}"
     )
-    return TaskNotification.objects.create(
+    notification = TaskNotification.objects.create(
         recipient=reminder.to_user,
         actor=reminder.from_user,
         task=reminder.task,
@@ -119,6 +154,8 @@ def create_reminder_notification(reminder):
         title="任务催办",
         content=content,
     )
+    push_notification_to_user(notification)
+    return notification
 
 
 def create_task_notification(notification_type, task, actor, receiver=None, extra=None, force_notify_self=False):
@@ -157,7 +194,7 @@ def create_task_notification(notification_type, task, actor, receiver=None, extr
     full_content = f"{content}\n{helper}"
 
     try:
-        return TaskNotification.objects.create(
+        notification = TaskNotification.objects.create(
             recipient=receiver,
             actor=actor,
             task=task,
@@ -165,6 +202,8 @@ def create_task_notification(notification_type, task, actor, receiver=None, extr
             title=config["title"],
             content=full_content,
         )
+        push_notification_to_user(notification)
+        return notification
     except Exception as exc:
         logger.error("Failed to create notification: %s", exc)
         return None

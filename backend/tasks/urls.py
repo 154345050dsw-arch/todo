@@ -10,6 +10,7 @@ from .views import (
     DepartmentUpdateView,
     DepartmentDeactivateView,
     DepartmentActivateView,
+    FrequentOwnersView,
     HealthView,
     LoginView,
     MeView,
@@ -51,6 +52,7 @@ urlpatterns = [
     path("stats/statuses/", StatusStatsView.as_view()),
     path("stats/daily-activity/", DailyActivityStatsView.as_view()),
     path("meta/", MetaView.as_view()),
+    path("frequent-owners/", FrequentOwnersView.as_view()),
     # 组织管理 API
     path("org/departments/tree/", DepartmentTreeView.as_view()),
     path("org/departments/inactive/", DepartmentInactiveListView.as_view()),

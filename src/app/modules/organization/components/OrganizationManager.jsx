@@ -507,6 +507,52 @@ export default function OrganizationPage({ user }) {
   const isSuperAdmin = user?.is_super_admin;
   const managedDeptIds = user?.managed_department_ids || [];
 
+  // ESC 键关闭弹窗
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        // 按优先级关闭弹窗
+        if (transferTasksOpen) {
+          setTransferTasksOpen(false);
+          setTransferTargetUser(null);
+          return;
+        }
+        if (passwordResetOpen) {
+          setPasswordResetOpen(false);
+          setResetTargetUser(null);
+          return;
+        }
+        if (confirmDialogOpen) {
+          setConfirmDialogOpen(false);
+          setConfirmAction(null);
+          return;
+        }
+        if (userCreateOpen) {
+          setUserCreateOpen(false);
+          setCreateMemberDeptId(null);
+          return;
+        }
+        if (userEditOpen) {
+          setUserEditOpen(false);
+          setEditingUser(null);
+          return;
+        }
+        if (deptCreateOpen) {
+          setDeptCreateOpen(false);
+          setCreateParentId(null);
+          return;
+        }
+        if (deptEditOpen) {
+          setDeptEditOpen(false);
+          setEditingDept(null);
+          return;
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [transferTasksOpen, passwordResetOpen, confirmDialogOpen, userCreateOpen, userEditOpen, deptCreateOpen, deptEditOpen]);
+
   const loadDeptTree = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -985,7 +1031,26 @@ export default function OrganizationPage({ user }) {
             setCreateMemberDeptId(null);
           }}
           onSuccess={() => {
-            setMembersByDept({});
+            const deptIdToRefresh = createMemberDeptId;
+            // 清除该部门的成员缓存，强制重新加载
+            setMembersByDept((prev) => {
+              const next = { ...prev };
+              if (deptIdToRefresh) delete next[deptIdToRefresh];
+              return next;
+            });
+            // 确保该部门展开，并加载成员列表
+            if (deptIdToRefresh) {
+              setExpandedDepts(prev => ({ ...prev, [deptIdToRefresh]: true }));
+              // 设置加载状态并直接调用 API 加载成员
+              setLoadingMembers(prev => ({ ...prev, [deptIdToRefresh]: true }));
+              api.orgUsers({ department_id: deptIdToRefresh }).then(data => {
+                setMembersByDept(prev => ({ ...prev, [deptIdToRefresh]: data }));
+              }).catch(e => {
+                console.error('加载成员失败:', e);
+              }).finally(() => {
+                setLoadingMembers(prev => ({ ...prev, [deptIdToRefresh]: false }));
+              });
+            }
             loadDeptTree();
             setUserCreateOpen(false);
             setCreateMemberDeptId(null);

@@ -8,11 +8,12 @@
 
 ```bash
 # 检查端口占用
-netstat -tlnp | grep 5173
-netstat -tlnp | grep 8001
+netstat -tlnp | grep 5173  # 前端
+netstat -tlnp | grep 8001  # 后端 API
+netstat -tlnp | grep 6379  # Redis
 ```
 
-如果被占用，修改 `docker compose.yml` 中的端口映射。
+如果被占用，修改 `docker-compose.yml` 中的端口映射。
 
 ### 2. 安装 Docker
 
@@ -112,6 +113,12 @@ MYSQL_HOST=host.docker.internal
 # MYSQL_HOST=192.168.1.100
 
 MYSQL_PORT=3306
+
+# Redis 配置（WebSocket 实时推送）
+# Docker 部署时无需配置，自动连接容器内 Redis
+# 本地开发时使用：
+# REDIS_HOST=127.0.0.1
+# REDIS_PORT=6379
 ```
 
 **生成安全密钥：**
@@ -120,12 +127,24 @@ MYSQL_PORT=3306
 python3 -c "import secrets; print(secrets.token_urlsafe(50))"
 ```
 
-### 2. `docker compose.yml` （可选修改）
+### 2. `docker-compose.yml` （可选修改）
+
+默认配置包含三个服务：
+
+```yaml
+services:
+  redis:       # WebSocket 实时推送依赖
+  backend:     # Django API (ASGI/Daphne)
+  frontend:    # Nginx 静态服务
+```
 
 如果需要修改端口，编辑此文件：
 
 ```yaml
 services:
+  redis:
+    ports:
+      - "6379:6379"  # Redis 端口
   backend:
     ports:
       - "8001:8001"  # 改为其他端口如 "9001:8001"
@@ -133,6 +152,8 @@ services:
     ports:
       - "5173:5173"  # 改为其他端口如 "80:5173"
 ```
+
+**注意**：Redis 服务用于 WebSocket 实时推送功能（任务创建时立即通知相关用户）。
 
 ---
 
@@ -277,6 +298,50 @@ docker compose build frontend --no-cache
 docker compose up -d frontend
 ```
 
+### 问题 5：WebSocket 连接失败
+
+**症状**：任务创建后其他用户看不到实时通知，需要刷新页面
+
+**排查**：
+
+```bash
+# 检查 Redis 容器状态
+docker compose ps redis
+
+# 检查 Redis 连接
+docker compose exec backend python -c "
+from channels.layers import get_channel_layer
+layer = get_channel_layer()
+print('Channel layer:', layer)
+"
+
+# 检查后端是否使用 ASGI (Daphne)
+docker compose logs backend | grep -i daphne
+# 应看到 "Starting server at tcp:port=8001"
+
+# 如果 Redis 容器未启动
+docker compose up -d redis
+docker compose restart backend
+```
+
+### 问题 6：实时通知不推送
+
+**症状**：WebSocket 连接成功但收不到通知
+
+**排查**：
+
+```bash
+# 检查通知是否创建
+docker compose exec backend python manage.py shell -c "
+from tasks.models import TaskNotification
+print('Recent notifications:', TaskNotification.objects.count())
+"
+
+# 检查 Redis 是否正常运行
+docker compose exec redis redis-cli ping
+# 应返回 PONG
+```
+
 ---
 
 ## 八、日常运维命令
@@ -337,10 +402,39 @@ docker compose exec backend python manage.py migrate
 | 配置项 | 文件位置 | 必须配置 |
 |--------|----------|----------|
 | Django 密钥、数据库连接 | `backend/.env` | **是** |
-| 端口映射 | `docker compose.yml` | 可选（默认 5173/8001） |
+| Redis 连接 | `docker-compose.yml` | 自动配置 |
+| 端口映射 | `docker-compose.yml` | 可选（默认 5173/8001/6379） |
 | nginx 反向代理 | `nginx.conf` | 无需修改 |
 | 防火墙端口 | 系统配置 | **是**（开放 5173） |
 | MySQL 数据库 | MySQL 服务 | **是**（创建 flowdesk 数据库） |
+
+---
+
+## 十一、WebSocket 实时推送说明
+
+FlowDesk 支持实时推送功能：
+
+- **A 创建任务给 B** → B 立即收到通知（无需刷新）
+- **任务流转、催办、完成** → 相关用户立即收到 Toast 通知
+
+**技术实现**：
+- 后端使用 Django Channels + Redis Channel Layer
+- 前端通过 WebSocket 连接 `/ws/notifications/`
+- 使用 Daphne (ASGI) 替代 Gunicorn (WSGI)
+
+**本地开发启动**：
+
+```bash
+# 启动 Redis
+docker run -d --name flowdesk-redis -p 6379:6379 redis:alpine
+
+# 启动 Django (ASGI)
+cd backend
+PYTHONPATH=$(pwd) daphne -b 0.0.0.0 -p 8000 flowdesk.asgi:application
+
+# 或使用 runserver（Django 4.2+ 自动支持 ASGI）
+python manage.py runserver 0.0.0.0:8000
+```
 
 
 Docker 部署后，执行：                                                                                                                                  

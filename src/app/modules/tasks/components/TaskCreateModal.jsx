@@ -12,6 +12,7 @@ import {
   Italic,
   Link2,
   List,
+  Plus,
   Search,
   Sparkles,
   Users,
@@ -199,11 +200,11 @@ function ElegantDatePicker({ value, onChange, showTime, timeValue, onTimeChange,
   );
 }
 
-function createInitialTaskForm() {
+function createInitialTaskForm(currentUser) {
   return {
     title: '',
     description: '',
-    candidate_owner_ids: [],
+    candidate_owner_ids: currentUser ? [currentUser.id] : [],
     due_date: localDateInputValue(),
     due_has_time: false,
     due_time: '23:59',
@@ -220,7 +221,8 @@ function selectedUsers(users = [], selectedIds = []) {
 
 function toggleStringId(values, id) {
   const idText = String(id);
-  return values.includes(idText) ? values.filter((value) => value !== idText) : [...values, idText];
+  const hasId = values.some((value) => String(value) === idText);
+  return hasId ? values.filter((value) => String(value) !== idText) : [...values, idText];
 }
 
 function RichTextEditor({ value, onChange }) {
@@ -686,44 +688,65 @@ function UserSelectControl({
   );
 }
 
-function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange, required, currentUser, className = '', displayUser }) {
+function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange, required, currentUser, className = '', displayUser, onRefreshMeta }) {
   const [manageOpen, setManageOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchOpen, setSearchOpen] = useState(false);
   const containerRef = useRef(null);
-  const [frequentIds, setFrequentIds] = useState(() => {
-    try {
-      const saved = localStorage.getItem('flowdesk_frequent_owners');
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
+
+  // 本地维护常用负责人状态（初始化从 meta.users.is_frequent）
+  const [localFrequentIds, setLocalFrequentIds] = useState(() => {
+    const frequentIds = users.filter((user) => user.is_frequent).map((user) => user.id);
+    // 确保当前用户在列表中
+    if (currentUser && !frequentIds.includes(currentUser.id)) {
+      return [currentUser.id, ...frequentIds].slice(0, 5);
     }
+    return frequentIds.slice(0, 5);
   });
 
-  function saveFrequentIds(ids) {
-    setFrequentIds(ids);
-    localStorage.setItem('flowdesk_frequent_owners', JSON.stringify(ids));
-  }
+  // 记录原始状态，用于在完成时判断是否有变化
+  const [originalFrequentIds, setOriginalFrequentIds] = useState(() => {
+    const frequentIds = users.filter((user) => user.is_frequent).map((user) => user.id);
+    if (currentUser && !frequentIds.includes(currentUser.id)) {
+      return [currentUser.id, ...frequentIds].slice(0, 5);
+    }
+    return frequentIds.slice(0, 5);
+  });
 
+  // 常用负责人：基于本地状态，当前用户排第一位
   const frequentUsers = useMemo(() => {
     const byId = {};
-    users.forEach((user) => {
-      byId[user.id] = user;
-    });
-    const list = frequentIds.map((id) => byId[id]).filter(Boolean);
-    if (currentUser && !frequentIds.includes(currentUser.id)) {
-      return [currentUser, ...list.slice(0, 4)];
+    users.forEach((user) => { byId[user.id] = user; });
+    const list = localFrequentIds.map((id) => byId[id]).filter(Boolean);
+    // 当前用户排第一位
+    if (currentUser && list.some((u) => u.id === currentUser.id)) {
+      const others = list.filter((u) => u.id !== currentUser.id);
+      return [byId[currentUser.id], ...others].filter(Boolean);
     }
-    return list.slice(0, 5);
-  }, [users, frequentIds, currentUser]);
+    return list;
+  }, [users, localFrequentIds, currentUser]);
 
   const pickedUsers = selectedUsers(users, selectedIds);
   const selectedSet = new Set(selectedIds.map(String));
   const query = searchQuery.trim().toLowerCase();
-  const searchResults = useMemo(() => {
-    if (!query) return [];
-    return users.filter((user) => userSearchText(user, displayUser).includes(query)).slice(0, 8);
-  }, [displayUser, query, users]);
+
+  // 搜索框下拉：按频率排序显示（排除当前用户和常用负责人）
+  const displayUsers = useMemo(() => {
+    const sortedByFrequency = [...users]
+      .filter((user) => user.id !== currentUser?.id) // 排除当前用户
+      .sort((a, b) => {
+        const countA = a.assignment_count || 0;
+        const countB = b.assignment_count || 0;
+        if (countA !== countB) return countB - countA;
+        return displayUser(a).localeCompare(displayUser(b));
+      });
+
+    if (query) {
+      return sortedByFrequency.filter((user) => userSearchText(user, displayUser).includes(query)).slice(0, 8);
+    }
+    // 无搜索词：排除已在常用列表的
+    return sortedByFrequency.filter((user) => !localFrequentIds.includes(user.id)).slice(0, 5);
+  }, [displayUser, query, users, currentUser, localFrequentIds]);
 
   useEffect(() => {
     if (!searchOpen) return;
@@ -737,15 +760,36 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
     return () => document.removeEventListener('mousedown', handleClick);
   }, [searchOpen]);
 
-  function rememberFrequent(user) {
-    if (!frequentIds.includes(user.id)) {
-      saveFrequentIds([user.id, ...frequentIds.slice(0, 4)]);
+  // 删除：只更新本地状态，点击完成后才保存
+  function removeFromFrequent(user) {
+    const newIds = localFrequentIds.filter((id) => id !== user.id);
+    setLocalFrequentIds(newIds);
+  }
+
+  async function addToFrequent(user) {
+    const newIds = [user.id, ...localFrequentIds].slice(0, 5);
+    setLocalFrequentIds(newIds);
+    setOriginalFrequentIds(newIds);
+    try {
+      await api.updateFrequentOwners(newIds);
+      onRefreshMeta?.();
+    } catch { }
+  }
+
+  // 完成管理：如果有变化则保存
+  async function finishManage() {
+    setManageOpen(false);
+    if (JSON.stringify(localFrequentIds) !== JSON.stringify(originalFrequentIds)) {
+      setOriginalFrequentIds(localFrequentIds);
+      try {
+        await api.updateFrequentOwners(localFrequentIds);
+        onRefreshMeta?.();
+      } catch { }
     }
   }
 
-  function toggleOwner(user, { remember = false } = {}) {
+  function toggleOwner(user) {
     onChange(toggleStringId(selectedIds, user.id));
-    if (remember) rememberFrequent(user);
   }
 
   return (
@@ -779,7 +823,14 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
           {frequentUsers.length > 0 && (
             <button
               type="button"
-              onClick={() => setManageOpen((value) => !value)}
+              onClick={() => {
+                if (manageOpen) {
+                  finishManage();
+                } else {
+                  setOriginalFrequentIds(localFrequentIds);
+                  setManageOpen(true);
+                }
+              }}
               className="rounded-[6px] px-1.5 py-0.5 text-[11px] text-[var(--app-subtle)] hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-muted)]"
             >
               {manageOpen ? '完成' : '管理'}
@@ -795,7 +846,7 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
               <button
                 key={item.id}
                 type="button"
-                onClick={() => canRemove ? saveFrequentIds(frequentIds.filter((id) => id !== item.id)) : toggleOwner(item)}
+                onClick={() => canRemove ? removeFromFrequent(item) : toggleOwner(item)}
                 className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-2.5 text-xs font-medium transition ${
                   canRemove
                     ? 'border-red-300 bg-red-50 text-red-500 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400'
@@ -821,7 +872,7 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
             <input
               value={searchQuery}
               onFocus={() => {
-                if (searchQuery.trim()) setSearchOpen(true);
+                setSearchOpen(true);
               }}
               onChange={(event) => {
                 setSearchQuery(event.target.value);
@@ -851,35 +902,49 @@ function SmartUserPicker({ label, helper, users = [], selectedIds = [], onChange
 
           {searchOpen && (
             <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-50 max-h-64 overflow-auto rounded-[12px] border border-[var(--app-border)] bg-[var(--app-panel)] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.16)]">
-              {searchResults.length > 0 ? (
+              {displayUsers.length > 0 ? (
                 <div className="space-y-1">
-                  {searchResults.map((item) => {
+                  {displayUsers.map((item) => {
                     const selected = selectedSet.has(String(item.id));
                     return (
-                      <button
+                      <div
                         key={item.id}
-                        type="button"
-                        onClick={() => {
-                          toggleOwner(item);
-                          setSearchQuery('');
-                          setSearchOpen(false);
-                        }}
-                        className={`flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 text-left transition hover:bg-[var(--app-panel-soft)] ${
+                        className={`flex w-full items-center gap-3 rounded-[8px] px-2.5 py-2 transition hover:bg-[var(--app-panel-soft)] ${
                           selected ? 'bg-[var(--app-primary)]/10' : ''
                         }`}
                       >
-                        <span className={`grid size-8 shrink-0 place-items-center rounded-[8px] text-sm font-semibold ${
-                          selected ? 'bg-[var(--app-primary)] text-white' : 'bg-[var(--app-panel-soft)] text-[var(--app-text)]'
-                        }`}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleOwner(item);
+                            setSearchQuery('');
+                            setSearchOpen(false);
+                          }}
+                          className="flex min-w-0 flex-1 items-center gap-3 text-left"
                         >
-                          {displayUser(item)[0]}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-medium text-[var(--app-text)]">{displayUser(item)}</span>
-                          <span className="block truncate text-xs text-[var(--app-subtle)]">{item.default_department?.name || '未设置部门'}</span>
-                        </span>
-                        {selected && <Check size={14} className="text-[var(--app-primary)]" />}
-                      </button>
+                          <span className={`grid size-8 shrink-0 place-items-center rounded-[8px] text-sm font-semibold ${
+                            selected ? 'bg-[var(--app-primary)] text-white' : 'bg-[var(--app-panel-soft)] text-[var(--app-text)]'
+                          }`}
+                          >
+                            {displayUser(item)[0]}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-[var(--app-text)]">{displayUser(item)}</span>
+                            <span className="block truncate text-xs text-[var(--app-subtle)]">{item.default_department?.name || '未设置部门'}</span>
+                          </span>
+                          {selected && <Check size={14} className="text-[var(--app-primary)]" />}
+                        </button>
+                        {!item.is_frequent && frequentUsers.length < 5 && (
+                          <button
+                            type="button"
+                            onClick={() => addToFrequent(item)}
+                            className="grid size-7 shrink-0 place-items-center rounded-[6px] text-[var(--app-subtle)] hover:bg-[var(--app-primary)]/10 hover:text-[var(--app-primary)]"
+                            title="加入常用"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
@@ -958,8 +1023,8 @@ function PriorityControl({ priorities = [], value, onChange }) {
   );
 }
 
-export default function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, onCreated, displayUser }) {
-  const [form, setForm] = useState(() => createInitialTaskForm());
+export default function TaskCreateModal({ open, meta, currentUser, restoreFocusRef, onClose, onCreated, onRefreshMeta, displayUser }) {
+  const [form, setForm] = useState(() => createInitialTaskForm(currentUser));
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -969,7 +1034,7 @@ export default function TaskCreateModal({ open, meta, currentUser, restoreFocusR
   useEffect(() => {
     if (open) {
       wasOpenRef.current = true;
-      setForm(createInitialTaskForm());
+      setForm(createInitialTaskForm(currentUser));
       setAdvancedOpen(false);
       setError('');
       requestAnimationFrame(() => titleRef.current?.focus());
@@ -978,12 +1043,12 @@ export default function TaskCreateModal({ open, meta, currentUser, restoreFocusR
     if (wasOpenRef.current) {
       wasOpenRef.current = false;
       setSaving(false);
-      setForm(createInitialTaskForm());
+      setForm(createInitialTaskForm(currentUser));
       setAdvancedOpen(false);
       setError('');
       requestAnimationFrame(() => restoreFocusRef?.current?.focus());
     }
-  }, [open, restoreFocusRef]);
+  }, [open, restoreFocusRef, currentUser]);
 
   function closeModal() {
     if (saving) return;
@@ -1068,10 +1133,11 @@ export default function TaskCreateModal({ open, meta, currentUser, restoreFocusR
                 currentUser={currentUser}
                 selectedIds={form.candidate_owner_ids}
                 onChange={(candidate_owner_ids) => setForm({ ...form, candidate_owner_ids })}
+                onRefreshMeta={onRefreshMeta}
                 required
                 displayUser={displayUser}
               />
-              <p className="text-[13px] leading-5 text-[var(--app-muted)]">多人时先进入各自待办，最先开始处理的人会成为实际负责人。可搜索其他人员，部门将自动匹配。</p>
+              <p className="text-[13px] leading-5 text-[var(--app-muted)]">默认已选中自己，点击可取消。多人时先进入各自待办，最先开始处理的人会成为实际负责人。</p>
             </div>
 
             <div className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] p-4">

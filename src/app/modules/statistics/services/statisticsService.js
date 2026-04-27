@@ -10,4 +10,7 @@ export const statisticsService = {
   dailyActivity(params = {}) {
     return apiRequest(`/api/stats/daily-activity/${buildQueryString(params)}`);
   },
+  updateFrequentOwners(userIds) {
+    return apiRequest('/api/frequent-owners/', { method: 'POST', body: JSON.stringify({ user_ids: userIds }) });
+  },
 };

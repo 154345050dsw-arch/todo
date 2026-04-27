@@ -72,6 +72,12 @@ class UserProfile(models.Model):
         blank=True,
         on_delete=models.SET_NULL,
     )
+    frequent_owners = models.ManyToManyField(
+        User,
+        related_name="frequent_for_users",
+        blank=True,
+        verbose_name='常用负责人'
+    )
     role = models.CharField(
         max_length=24,
         choices=UserRole.choices,
@@ -124,6 +130,17 @@ class Task(models.Model):
     cancelled_at = models.DateTimeField(null=True, blank=True)
     cancel_reason = models.TextField(blank=True)
     completion_note = models.TextField(blank=True)
+    rework_count = models.IntegerField(default=0, verbose_name='重办次数')
+    rework_reason = models.TextField(blank=True, verbose_name='重办原因')
+    rework_by = models.ForeignKey(
+        User,
+        related_name="reworked_tasks",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        verbose_name='重办发起人'
+    )
+    rework_at = models.DateTimeField(null=True, blank=True, verbose_name='重办时间')
 
     class Meta:
         ordering = ["-updated_at", "-id"]
@@ -156,6 +173,7 @@ class FlowEvent(models.Model):
         DEPARTMENT = "department", "部门变更"
         ACTION = "action", "操作"
         REMIND = "remind", "催办"
+        REWORK = "rework", "重办"
 
     task = models.ForeignKey(Task, related_name="events", on_delete=models.CASCADE)
     actor = models.ForeignKey(User, related_name="flow_events", on_delete=models.CASCADE)
@@ -223,6 +241,7 @@ class TaskNotification(models.Model):
         COMPLETE_CONFIRM = "complete_confirm", "待完成确认"
         CANCEL_CONFIRM = "cancel_confirm", "待取消确认"
         TASK_TIMEOUT = "task_timeout", "任务超时"
+        TASK_REWORKED = "task_reworked", "任务重办"
 
     recipient = models.ForeignKey(User, related_name="task_notifications", on_delete=models.CASCADE)
     actor = models.ForeignKey(User, related_name="sent_task_notifications", on_delete=models.CASCADE)

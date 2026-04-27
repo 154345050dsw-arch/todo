@@ -43,7 +43,9 @@ class DashboardView(APIView):
             .filter(Q(owner=request.user) | Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user))
             .filter(due_at__date=today)
         )
-        my_todo_count = my_todo_tasks.count() + confirming_for_user.count()
+        # 待取消确认的任务：owner 是当前用户时需要处理
+        cancel_pending_for_user = tasks.filter(status=Task.Status.CANCEL_PENDING, due_at__date=today, owner=request.user)
+        my_todo_count = my_todo_tasks.count() + confirming_for_user.count() + cancel_pending_for_user.count()
 
         transferred_ids = FlowEvent.objects.filter(
             actor=request.user,
@@ -59,7 +61,7 @@ class DashboardView(APIView):
                 "my_todo": my_todo_count,
                 "future": schedulable.filter(Q(due_at__date__gt=today) | Q(due_at__isnull=True)).count(),
                 "confirming": tasks.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user)).count(),
-                "cancel_pending": tasks.filter(creator=request.user, status=Task.Status.CANCEL_PENDING).count(),
+                "cancel_pending": tasks.filter(status=Task.Status.CANCEL_PENDING).filter(Q(creator=request.user) | Q(confirmer=request.user)).count(),
                 "due_today": my_todo_count,
                 "overdue": active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
                 "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).count(),
@@ -74,14 +76,81 @@ class DashboardView(APIView):
 
 class MetaView(APIView):
     def get(self, request):
+        # 统计当前用户创建任务时指定各用户为待处理人的次数
+        user_created_tasks = Task.objects.filter(creator=request.user)
+        task_ids = list(user_created_tasks.values_list('id', flat=True))
+
+        # 统计 owner 指定次数
+        owner_counts = {}
+        if task_ids:
+            owner_rows = user_created_tasks.filter(owner__isnull=False).values('owner_id').annotate(count=Count('id'))
+            owner_counts = {row['owner_id']: row['count'] for row in owner_rows}
+
+        # 统计 candidate_owners 指定次数
+        candidate_counts = {}
+        if task_ids:
+            for user in User.objects.all():
+                count = user_created_tasks.filter(candidate_owners=user).count()
+                if count > 0:
+                    candidate_counts[user.id] = count
+
+        # 合并次数
+        total_counts = {}
+        for uid, count in owner_counts.items():
+            total_counts[uid] = total_counts.get(uid, 0) + count
+        for uid, count in candidate_counts.items():
+            total_counts[uid] = total_counts.get(uid, 0) + count
+
+        # 获取当前用户的常用负责人
+        profile = getattr(request.user, 'profile', None)
+        if profile:
+            # 确保当前用户在常用负责人列表中
+            if not profile.frequent_owners.filter(id=request.user.id).exists():
+                profile.frequent_owners.add(request.user)
+            frequent_owner_ids = list(profile.frequent_owners.values_list('id', flat=True))
+        else:
+            frequent_owner_ids = [request.user.id]
+
+        # 构建用户数据（包含 assignment_count）
+        users_data = []
+        for user in User.objects.order_by('username'):
+            user_data = UserSerializer(user).data
+            user_data['assignment_count'] = total_counts.get(user.id, 0)
+            user_data['is_frequent'] = user.id in frequent_owner_ids
+            users_data.append(user_data)
+
         return Response(
             {
-                "users": UserSerializer(User.objects.order_by("username"), many=True).data,
+                "users": users_data,
+                "frequent_owners": UserSerializer(profile.frequent_owners.all() if profile else [request.user], many=True).data,
                 "departments": DepartmentSerializer(Department.objects.order_by("name"), many=True).data,
                 "statuses": [{"value": value, "label": label} for value, label in Task.Status.choices],
                 "priorities": [{"value": value, "label": label} for value, label in Task.Priority.choices],
             }
         )
+
+
+class FrequentOwnersView(APIView):
+    """更新常用负责人"""
+    def post(self, request):
+        user_ids = request.data.get('user_ids', [])
+        if not isinstance(user_ids, list):
+            return Response({"detail": "user_ids 必须是列表"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # 确保当前用户始终在列表中
+        if request.user.id not in user_ids:
+            user_ids = [request.user.id] + user_ids
+
+        if len(user_ids) > 5:
+            user_ids = user_ids[:5]
+
+        profile = getattr(request.user, 'profile', None)
+        if not profile:
+            return Response({"detail": "用户档案不存在"}, status=status.HTTP_404_NOT_FOUND)
+
+        # 更新常用负责人
+        profile.frequent_owners.set(user_ids)
+        return Response({"frequent_owners": UserSerializer(profile.frequent_owners.all(), many=True).data})
 
 
 class PeopleStatsView(APIView):

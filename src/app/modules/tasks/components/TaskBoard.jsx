@@ -14,6 +14,8 @@ import {
   Clock3,
   ListChecks,
   Sun,
+  Timer,
+  User,
   X,
 } from 'lucide-react';
 
@@ -97,8 +99,25 @@ function TaskCard({
   formatActivityTime,
 }) {
   const isLimitedView = task.is_limited_view;
+  const hasReminder = (task.reminder_count || 0) > 0;
+  const isOverdue = isTaskOverdue(task);
 
-  const getRow4Content = () => {
+  // ========== 责任人显示逻辑 ==========
+  const getOwnerDisplay = () => {
+    // 待处理/处理中状态且无责任人 → 显示待处理人（candidate_owners）
+    if (['todo', 'in_progress'].includes(task.status) && !task.owner) {
+      if (task.candidate_owners?.length > 0) {
+        const names = task.candidate_owners.map(displayUser);
+        if (names.length <= 2) return names.join(' / ');
+        return `${names.slice(0, 2).join(' / ')} 等${names.length}人`;
+      }
+      return '待分配';
+    }
+    return getFirstRelatedPerson(task, user, displayUser);
+  };
+
+  // ========== 状态行内容 ==========
+  const getStatusRowContent = () => {
     if ((scope === 'cancel_pending' || scope === 'cancelled') && task.cancel_reason) {
       return (
         <span className={scope === 'cancel_pending' ? 'text-yellow-600 dark:text-yellow-400' : 'text-[var(--app-muted)]'}>
@@ -106,9 +125,9 @@ function TaskCard({
         </span>
       );
     }
-    if (task.reminder_count > 0) {
+    if (hasReminder) {
       return (
-        <span className="text-red-400">
+        <span className="text-orange-500 dark:text-orange-400">
           已催办 {task.reminder_count} 次
           {task.latest_reminder_at && (
             <span className="text-[var(--app-subtle)]"> · 最近 {formatActivityTime(task.latest_reminder_at)}</span>
@@ -119,62 +138,111 @@ function TaskCard({
     return null;
   };
 
+  // ========== 状态标签 ==========
+  const getStatusLabel = () => {
+    let baseLabel = statusLabels[task.status];
+    if (hasReminder) {
+      return `${baseLabel}-催办`;
+    }
+    return baseLabel;
+  };
+
+  const getStatusClass = () => {
+    if (isOverdue) {
+      return 'text-red-500';
+    }
+    if (hasReminder) {
+      return 'text-orange-500 dark:text-orange-400';
+    }
+    return statusTextClass(task.status);
+  };
+
+  // ========== 卡片样式：超时红、催办橙、完成绿 ==========
+  const cardBaseClass = isOverdue && !isLimitedView
+    ? 'border-[var(--app-border)] bg-red-100/60 dark:bg-red-500/15'
+    : task.status === 'done'
+      ? 'border-[var(--app-border)] bg-emerald-50/50 dark:bg-emerald-500/10'
+      : hasReminder && !isLimitedView
+        ? 'border-[var(--app-border)] bg-orange-100/60 dark:bg-orange-500/15'
+        : 'border-[var(--app-border)] bg-[var(--app-panel)]';
+
   return (
     <TaskCardFrame
       onOpen={() => onOpen(task.id)}
-      className={`group rounded-[12px] border border-[var(--app-border)] bg-[var(--app-panel)] p-4 text-left transition-all duration-200 hover:border-[var(--app-primary)]/20 hover:shadow-[var(--shadow-md)] ${dimmed ? 'opacity-60' : ''}`}
+      className={`group rounded-[12px] border ${cardBaseClass} p-4 text-left transition-all duration-200 hover:border-[var(--app-primary)]/20 hover:shadow-[var(--shadow-md)] ${dimmed ? 'opacity-60' : ''}`}
     >
-      {isLimitedView ? (
-        <>
-          <div className="text-[11px] font-medium uppercase tracking-wider text-[var(--app-subtle)]">{task.code}</div>
-          <div className="mt-1.5 line-clamp-2 text-[15px] font-semibold leading-snug">{task.title}</div>
-          <div className="mt-2 h-[50px]" />
-        </>
-      ) : (
-        <>
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-[var(--app-subtle)]">
-              {showPrefixIcon === 'done' && <span className="text-green-500 mr-1">✓</span>}
-              {showPrefixIcon === 'cancelled' && <span className="text-[var(--app-muted)] mr-1">✕</span>}
-              {task.code}
-            </span>
-            <RemindActionButton
-              task={task}
-              onRemind={onRemind}
-              user={user}
-              Tooltip={Tooltip}
-              canRemindTask={canRemindTask}
-              isTaskOverdue={isTaskOverdue}
-              reminderButtonLabel={reminderButtonLabel}
-            />
-          </div>
+      {/* ===== 第1行：标题 + 催办按钮（垂直居中对齐） ===== */}
+      <div className="flex items-center justify-between gap-2">
+        <span className="truncate text-[15px] font-semibold leading-snug text-[var(--app-text)]">
+          {showPrefixIcon === 'done' && <span className="text-green-500 mr-1.5">✓</span>}
+          {showPrefixIcon === 'cancelled' && <span className="text-[var(--app-muted)] mr-1.5">✕</span>}
+          {task.title}
+        </span>
+        {isLimitedView ? (
+          // 预留催办按钮空间，保持卡片高度一致
+          <div className="h-7 w-[72px]" />
+        ) : (
+          <RemindActionButton
+            task={task}
+            onRemind={onRemind}
+            user={user}
+            Tooltip={Tooltip}
+            canRemindTask={canRemindTask}
+            isTaskOverdue={isTaskOverdue}
+            reminderButtonLabel={reminderButtonLabel}
+          />
+        )}
+      </div>
 
-          <div className="mt-1.5 flex items-baseline gap-1 overflow-hidden">
-            <span className="truncate text-[15px] font-semibold leading-snug">{task.title}</span>
-            <span className={`shrink-0 text-[11px] ${statusTextClass(task.status)}`}>
-              ({statusLabels[task.status]})
-            </span>
-          </div>
+      {/* ===== 第2行：责任人（单独一行） ===== */}
+      <div className="mt-2.5 flex items-center gap-1.5 text-[13px] text-[var(--app-muted)]">
+        <User size={14} strokeWidth={1.5} className="text-[var(--app-subtle)]" />
+        <span className="truncate">{getOwnerDisplay()}</span>
+        {/* 状态标签 inline */}
+        <span className={`ml-auto shrink-0 text-[11px] ${getStatusClass()}`}>
+          {getStatusLabel()}
+        </span>
+      </div>
 
-          <div className="mt-2 flex items-center gap-2 text-[12px] text-[var(--app-muted)]">
-            <span className="truncate">{getFirstRelatedPerson(task, user, displayUser)}</span>
+      {/* ===== 第3行：时间信息（deadline + 耗时 + 处理时间） ===== */}
+      <div className="mt-2 flex items-center gap-2 text-[13px] text-[var(--app-muted)]">
+        {/* 截止时间 */}
+        <span className={`flex items-center gap-1 ${dueMeta(task).className}`}>
+          <Calendar size={12} strokeWidth={1.5} className="text-[var(--app-subtle)]" />
+          <span>{dueMeta(task).label}</span>
+        </span>
+        <span className="text-[var(--app-subtle)]">·</span>
+        {/* 当前耗时 */}
+        <span className="flex items-center gap-1 tabular-nums">
+          <Clock size={12} strokeWidth={1.5} className="text-[var(--app-subtle)]" />
+          <span>{task.current_duration_hours}h</span>
+        </span>
+        {/* 处理时间 */}
+        {task.processing_duration_hours && (
+          <>
             <span className="text-[var(--app-subtle)]">·</span>
-            <span className={dueMeta(task).className}>{dueMeta(task).label}</span>
+            <span className="flex items-center gap-1 tabular-nums">
+              <Timer size={12} strokeWidth={1.5} className="text-[var(--app-subtle)]" />
+              <span>{task.processing_duration_hours}h</span>
+            </span>
+          </>
+        )}
+        {/* 高优先级 */}
+        {task.priority === 'high' && scope !== 'done' && scope !== 'cancelled' && (
+          <>
             <span className="text-[var(--app-subtle)]">·</span>
-            <span className="tabular-nums">{task.processing_duration_hours || task.current_duration_hours}h</span>
-            {task.priority === 'high' && scope !== 'done' && scope !== 'cancelled' && (
-              <>
-                <span className="text-[var(--app-subtle)]">·</span>
-                <span className="text-red-500">高优先</span>
-              </>
-            )}
-          </div>
+            <span className="flex items-center gap-1 text-red-500">
+              <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
+              <span>高优先</span>
+            </span>
+          </>
+        )}
+      </div>
 
-          <div className="mt-1.5 h-[16px] text-[11px] leading-[16px] truncate">
-            {getRow4Content()}
-          </div>
-        </>
-      )}
+      {/* ===== 第4行：催办信息或取消原因（预留空间） ===== */}
+      <div className="mt-2 h-[16px] text-[11px] leading-[16px] truncate">
+        {!isLimitedView && getStatusRowContent()}
+      </div>
     </TaskCardFrame>
   );
 }
@@ -212,10 +280,31 @@ function futureGroupKey(task, taskDueDateKey, dateKey, dateFromKey) {
 }
 
 function compareTasksByDue(left, right) {
-  if (!left.due_at && !right.due_at) return new Date(right.updated_at || 0) - new Date(left.updated_at || 0);
+  // 催办优先：相同截止时间时，催办的排前面
+  const leftHasReminder = (left.reminder_count || 0) > 0;
+  const rightHasReminder = (right.reminder_count || 0) > 0;
+
+  const leftDue = left.due_at ? new Date(left.due_at).getTime() : Infinity;
+  const rightDue = right.due_at ? new Date(right.due_at).getTime() : Infinity;
+
+  // 截止时间相同时，催办优先
+  if (leftDue === rightDue) {
+    if (leftHasReminder !== rightHasReminder) {
+      return leftHasReminder ? -1 : 1;
+    }
+    // 都有催办或都没催办，按更新时间
+    return new Date(right.updated_at || 0) - new Date(left.updated_at || 0);
+  }
+
+  // 无截止时间的排后面
+  if (!left.due_at && !right.due_at) {
+    return new Date(right.updated_at || 0) - new Date(left.updated_at || 0);
+  }
   if (!left.due_at) return 1;
   if (!right.due_at) return -1;
-  return new Date(left.due_at) - new Date(right.due_at);
+
+  // 按截止时间升序
+  return leftDue - rightDue;
 }
 
 function groupFutureTasks(tasks, taskDueDateKey, dateKey, dateFromKey) {
@@ -403,7 +492,8 @@ export default function TaskBoard(props) {
         const colTasks = tasks.filter((task) => {
           if (col.key === 'overdue') return isTaskOverdue(task);
           if (col.key === 'confirming') return task.status === 'confirming' || task.status === 'cancel_pending';
-          return task.status === col.key;
+          // 非 overdue 列：只显示匹配状态且未超时的任务（超时任务只在 overdue 列显示）
+          return task.status === col.key && !isTaskOverdue(task);
         });
         const isActive = col.key === 'overdue' || col.key === 'confirming';
         const isExpanded = expanded[col.key];

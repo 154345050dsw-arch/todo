@@ -457,6 +457,7 @@ function Workspace({ user, onLogout }) {
     closeNotificationToast,
     openNotificationTask,
     openNotificationTaskWithToast,
+    refreshAndMarkShown,
   } = useNotifications({
     notifications,
     openTask,
@@ -531,8 +532,8 @@ function Workspace({ user, onLogout }) {
     : scopeInfo;
 
   return (
-    <div className="min-h-screen bg-[var(--app-bg)] text-[var(--app-text)]">
-      <div className="grid min-h-screen grid-cols-[280px_minmax(0,1fr)]">
+    <div className="h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
+      <div className="grid h-full grid-cols-[280px_minmax(0,1fr)]">
         <WorkspaceSidebar
           navGroups={navGroups}
           dashboard={dashboard}
@@ -545,13 +546,19 @@ function Workspace({ user, onLogout }) {
         />
 
         {/* Main Content Area */}
-        <main className={`relative min-w-0 overflow-hidden border-r border-[var(--app-border)] transition-all duration-300 ${drawerOpen ? 'mr-[min(540px,42vw)]' : ''}`}>
+        <main className={`relative min-w-0 flex flex-col overflow-hidden transition-all duration-300 ${drawerOpen ? 'mr-[min(540px,42vw)]' : ''}`}>
           <WorkspaceTopBar
             onSearchOpen={openSearch}
             notificationsOpen={notificationsOpen}
             notifications={notifications}
             onToggleNotifications={() => {
-              setNotificationsOpen((value) => !value);
+              setNotificationsOpen((value) => {
+                if (!value) {
+                  // 打开铃铛时刷新通知并标记已显示ID
+                  refreshAndMarkShown();
+                }
+                return !value;
+              });
               setUserMenuOpen(false);
             }}
             onOpenNotificationTask={openNotificationTask}
@@ -574,7 +581,7 @@ function Workspace({ user, onLogout }) {
           />
 
           {/* Content Section - Kanban Only */}
-          <section className={`relative h-[calc(100vh-3.5rem)] overflow-auto p-5`}>
+          <section className={`relative flex-1 flex flex-col overflow-hidden p-5`}>
             {/* Click away to close drawer - only covers empty space */}
             {drawerOpen && (
               <div
@@ -582,7 +589,7 @@ function Workspace({ user, onLogout }) {
                 onClick={() => setDrawerOpen(false)}
               />
             )}
-            <div className="relative z-10">
+            <div className="relative z-10 flex flex-1 flex-col min-h-0">
               <TaskContentHeader
                 workspaceMode={workspaceMode}
                 pageInfo={pageInfo}
@@ -599,6 +606,7 @@ function Workspace({ user, onLogout }) {
               />
 
             {/* Kanban Board / Task List */}
+            <div className="flex-1 min-h-0 overflow-auto">
             {workspaceMode === 'organization' ? (
               <OrganizationPage
                 user={user}
@@ -647,6 +655,7 @@ function Workspace({ user, onLogout }) {
                 formatActivityTime={formatActivityTime}
               />
             )}
+            </div>
             </div>
           </section>
 
@@ -702,6 +711,7 @@ function Workspace({ user, onLogout }) {
             restoreFocusRef={createButtonRef}
             displayUser={displayUser}
             onClose={() => setCreateOpen(false)}
+            onRefreshMeta={loadData}
             onCreated={(task) => {
               setCreateOpen(false);
               openTask(task.id);

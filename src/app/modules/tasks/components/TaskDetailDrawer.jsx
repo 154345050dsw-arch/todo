@@ -13,6 +13,7 @@ import {
   Link2,
   List,
   PlayCircle,
+  RotateCcw,
   X,
   XCircle,
 } from 'lucide-react';
@@ -128,6 +129,9 @@ export default function TaskDetailDrawer({
   const [transferNote, setTransferNote] = useState('');
   const [remindNote, setRemindNote] = useState('请尽快处理该任务');
   const [selectedTransferUser, setSelectedTransferUser] = useState(null);
+  const [showReworkDialog, setShowReworkDialog] = useState(false);
+  const [reworkReason, setReworkReason] = useState('');
+  const [selectedReworkUser, setSelectedReworkUser] = useState(null);
   const [expandedSections, setExpandedSections] = useState({
     info: false,
     timeline: true,
@@ -142,10 +146,13 @@ export default function TaskDetailDrawer({
     setShowCompletionDialog(false);
     setShowTransferDialog(false);
     setShowRemindDialog(false);
+    setShowReworkDialog(false);
     setCompletionNote('');
     setTransferNote('');
     setRemindNote('请尽快处理该任务');
+    setReworkReason('');
     setSelectedTransferUser(null);
+    setSelectedReworkUser(null);
     setExpandedSections({ info: false, timeline: true, comments: false });
   }, [task?.id]);
 
@@ -171,6 +178,12 @@ export default function TaskDetailDrawer({
         if (showCancelDialog) {
           setShowCancelDialog(false);
           setCancelReason('');
+          return;
+        }
+        if (showReworkDialog) {
+          setShowReworkDialog(false);
+          setReworkReason('');
+          setSelectedReworkUser(null);
           return;
         }
         if (showTransferPicker) {
@@ -214,6 +227,7 @@ export default function TaskDetailDrawer({
   const isClosed = task ? ['done', 'cancelled'].includes(task.status) : false;
   const isCreator = sameUser(task?.creator, user);
   const isContentLocked = task?.is_limited_view;
+  const taskIsOverdue = task ? isTaskOverdue(task) : false;
   const isCancelPending = task?.status === 'cancel_pending';
   const needsCompletionNote = primaryAction?.payload?.action === 'confirm_complete' && task?.status === 'in_progress';
   const remindTargets = reminderTargetForTask(task);
@@ -288,9 +302,27 @@ export default function TaskDetailDrawer({
     if (!noteText) return;
     setSaving(true);
     try {
-      await runAction({ action: 'apply_cancel', note: cancelReason });
+      await runAction({ action: 'cancel', note: cancelReason });
       setShowCancelDialog(false);
       setCancelReason('');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRework() {
+    const reasonText = reworkReason.replace(/<[^>]*>/g, '').trim();
+    if (!reasonText) return;
+    setSaving(true);
+    try {
+      await runAction({
+        action: 'rework',
+        rework_reason: reworkReason,
+        rework_owner_id: selectedReworkUser?.id,
+      });
+      setShowReworkDialog(false);
+      setReworkReason('');
+      setSelectedReworkUser(null);
     } finally {
       setSaving(false);
     }
@@ -341,7 +373,21 @@ export default function TaskDetailDrawer({
             )}
 
             <div className="mt-4 inline-flex items-center gap-2.5">
-              <Badge className={badgeClass(statusTone, task.status)}>{statusLabels[task.status]}</Badge>
+              <Badge className={badgeClass(statusTone, taskIsOverdue ? 'overdue' : task.status)}>
+                {statusLabels[task.status]}
+              </Badge>
+              {task.reminder_count > 0 && !isClosed && (
+                <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-orange-200 bg-orange-50 px-2.5 py-1 text-[13px] font-medium text-orange-600 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400">
+                  <BellRing size={14} strokeWidth={1.5} />
+                  催办 ({task.reminder_count}次)
+                </span>
+              )}
+              {task.rework_count > 0 && (
+                <span className="inline-flex items-center gap-1.5 rounded-[8px] border border-orange-200 bg-orange-50 px-2.5 py-1 text-[13px] font-medium text-orange-600 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400">
+                  <RotateCcw size={14} strokeWidth={1.5} />
+                  重办 ({task.rework_count}次)
+                </span>
+              )}
               {task.priority === 'high' && !isClosed && (
                 <span className="inline-flex items-center gap-1.5 rounded-[8px] bg-red-50 px-2.5 py-1 text-[13px] font-medium text-red-500 dark:bg-red-500/10">
                   <span className="size-1.5 rounded-full bg-red-500" />
@@ -507,6 +553,27 @@ export default function TaskDetailDrawer({
                       </span>
                     </button>
                   </Tooltip>
+
+                  {/* 重办按钮 - 只在 confirming 状态显示 */}
+                  {task.status === 'confirming' && canPerformAction(task, 'rework') && (
+                    <Tooltip content={!canPerformAction(task, 'rework') ? '只有确认人可以重办' : null}>
+                      <button
+                        disabled={saving}
+                        type="button"
+                        onClick={() => setShowReworkDialog(true)}
+                        className={`h-11 shrink-0 rounded-xl border px-4 text-[15px] font-medium transition-all shadow-sm ${
+                          canPerformAction(task, 'rework')
+                            ? 'border-orange-300 bg-orange-100 text-orange-700 hover:border-orange-400 hover:bg-orange-200 dark:border-orange-500/40 dark:bg-orange-500/20 dark:text-orange-400'
+                            : 'cursor-not-allowed border-[var(--app-border)] bg-[var(--app-panel-soft)] text-[var(--app-muted)]'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <RotateCcw size={16} strokeWidth={1.5} />
+                          重办
+                        </span>
+                      </button>
+                    </Tooltip>
+                  )}
                 </div>
               )}
             </div>
@@ -612,6 +679,25 @@ export default function TaskDetailDrawer({
             }}
           />
 
+          {/* 重办对话框 */}
+          <ReworkModal
+            open={showReworkDialog}
+            task={task}
+            meta={meta}
+            onClose={() => {
+              setShowReworkDialog(false);
+              setReworkReason('');
+              setSelectedReworkUser(null);
+            }}
+            onSubmit={handleRework}
+            reworkReason={reworkReason}
+            setReworkReason={setReworkReason}
+            selectedReworkUser={selectedReworkUser}
+            setSelectedReworkUser={setSelectedReworkUser}
+            saving={saving}
+            displayUser={displayUser}
+          />
+
           <div className="border-t border-[var(--app-border)]" />
 
           <div className="px-8 py-5">
@@ -636,7 +722,11 @@ export default function TaskDetailDrawer({
             <CollapsibleSection title="任务信息" defaultOpen={expandedSections.info}>
               <div className="grid grid-cols-2 gap-2.5 text-[15px]">
                 {[
-                  ['负责人', displayUser(task.owner)],
+                  ['负责人', task.owner
+                    ? displayUser(task.owner)
+                    : task.candidate_owners?.length > 0
+                      ? task.candidate_owners.map(displayUser).join(' / ')
+                      : '-'],
                   ['部门', task.department?.name || '-'],
                   ['当前耗时', formatDurationHours(task.current_duration_hours)],
                   ['处理时间', formatDurationHours(task.processing_duration_hours)],
@@ -694,19 +784,22 @@ function RichTextModal({ open, onClose, onSubmit, value, onChange, saving, confi
   const savedRangeRef = useRef(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
+  const initializedRef = useRef(false);
 
-  useEffect(() => {
-    if (!open || !editorRef.current) return;
-    editorRef.current.innerHTML = value || '';
-  }, [open, value]);
-
+  // 只在打开时初始化内容，避免编辑过程中重置导致光标跳动
   useEffect(() => {
     if (!open) {
+      initializedRef.current = false;
       setLinkOpen(false);
       setLinkUrl('');
+      return;
     }
+    if (!editorRef.current || initializedRef.current) return;
+    editorRef.current.innerHTML = value || '';
+    initializedRef.current = true;
   }, [open]);
 
+  // 同步编辑器内容到外部状态
   function syncValue() {
     onChange(editorRef.current?.innerHTML || '');
   }
@@ -932,6 +1025,111 @@ function RichTextModal({ open, onClose, onSubmit, value, onChange, saving, confi
               <Icon size={15} />
               {saving ? '提交中...' : submitLabel}
             </span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ReworkModal({
+  open,
+  task,
+  meta,
+  onClose,
+  onSubmit,
+  reworkReason,
+  setReworkReason,
+  selectedReworkUser,
+  setSelectedReworkUser,
+  saving,
+  displayUser,
+}) {
+  // 默认重办人：查找最后一次提交确认前的 owner（通过 FlowEvent）
+  const defaultOwner = task?.events?.find(e => e.to_status === 'confirming')?.from_owner || task?.owner;
+
+  // 打开对话框时初始化 selectedReworkUser 为默认重办人
+  useEffect(() => {
+    if (open && defaultOwner && !selectedReworkUser) {
+      setSelectedReworkUser(meta.users?.find(u => u.id === defaultOwner.id));
+    }
+  }, [open, defaultOwner, selectedReworkUser, meta.users, setSelectedReworkUser]);
+
+  if (!open || !task) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const reasonText = reworkReason.replace(/<[^>]*>/g, '').trim();
+    if (!reasonText) return;
+    onSubmit();
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-black/30 px-4 py-6 backdrop-blur-[2px]">
+      <div className="absolute inset-0" onClick={onClose} />
+      <div className="relative w-full max-w-md animate-modalPop rounded-2xl border border-[var(--app-border)] bg-[var(--app-panel)] shadow-[0_24px_80px_rgba(15,23,42,0.24)]" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-[var(--app-border)] px-5 py-4">
+          <div className="flex items-center gap-2 text-base font-semibold text-orange-600 dark:text-orange-400">
+            <RotateCcw size={20} />
+            重办任务
+          </div>
+          <button onClick={onClose} className="grid size-8 place-items-center rounded-lg text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)] hover:text-[var(--app-text)]">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-5 py-4">
+          <p className="mb-3 text-xs text-[var(--app-muted)]">
+            任务将退回重新处理，请填写重办原因。
+          </p>
+
+          {/* 重办人选择 */}
+          <div className="mb-4">
+            <label className="block text-[13px] font-medium text-[var(--app-text)]">重办人</label>
+            <select
+              value={selectedReworkUser?.id || defaultOwner?.id || ''}
+              onChange={(e) => {
+                const userId = parseInt(e.target.value);
+                setSelectedReworkUser(meta.users?.find(u => u.id === userId));
+              }}
+              className="mt-2 h-10 w-full rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-[15px] outline-none focus:border-[var(--app-primary)]"
+            >
+              {meta.users?.map(user => (
+                <option key={user.id} value={user.id}>{displayUser(user)}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 重办原因 */}
+          <div className="mb-4">
+            <label className="block text-[13px] font-medium text-[var(--app-text)]">重办原因（必填）</label>
+            <textarea
+              value={reworkReason}
+              onChange={(e) => setReworkReason(e.target.value)}
+              className="mt-2 min-h-[100px] w-full resize-none rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2.5 text-[15px] outline-none focus:border-[var(--app-primary)]"
+              placeholder="请说明需要重办的具体原因..."
+              required
+            />
+          </div>
+
+          {/* 提示信息 */}
+          <div className="rounded-[10px] border border-orange-200 bg-orange-50 px-3 py-2.5 text-[13px] text-orange-600 dark:border-orange-500/30 dark:bg-orange-500/10 dark:text-orange-400">
+            重办后任务将退回"待处理"状态，重办人需要重新处理。
+            当前已重办 {task.rework_count || 0} 次。
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2.5 border-t border-[var(--app-border)] px-5 py-4">
+          <button onClick={onClose} disabled={saving} className="h-9 rounded-lg border border-[var(--app-border)] px-4 text-sm font-medium text-[var(--app-muted)] transition-colors hover:bg-[var(--app-panel-soft)]">
+            取消
+          </button>
+          <button
+            onClick={handleSubmit}
+            disabled={saving || !reworkReason.replace(/<[^>]*>/g, '').trim()}
+            className="h-9 rounded-lg bg-orange-500 px-4 text-sm font-semibold text-white transition-all hover:bg-orange-600 disabled:opacity-50"
+          >
+            {saving ? '提交中...' : '确认重办'}
           </button>
         </div>
       </div>

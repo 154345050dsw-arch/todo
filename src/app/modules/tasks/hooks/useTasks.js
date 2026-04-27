@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api } from '../../../../api.js';
+import { api, getToken } from '../../../../api.js';
+import { wsConnection } from '../../notifications/services/websocketService.js';
 import { canRemindTask, scopeForTask } from '../utils/taskUtils.js';
 
 export function useTasks({
@@ -35,6 +36,7 @@ export function useTasks({
   const searchRequestRef = useRef(0);
   const dataRequestRef = useRef(0);
   const createButtonRef = useRef(null);
+  const pendingNotificationsRef = useRef([]);
 
   const loadData = useCallback(async () => {
     const requestId = dataRequestRef.current + 1;
@@ -71,6 +73,47 @@ export function useTasks({
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // WebSocket 监听：实时刷新任务列表
+  useEffect(() => {
+    if (!getToken()) return undefined;
+
+    const handleTaskNotification = (notification) => {
+      // 任务相关的通知类型
+      const taskRelatedTypes = ['task_created', 'task_transferred', 'task_reworked', 'task_completed', 'task_cancel_requested'];
+      if (!taskRelatedTypes.includes(notification.notification_type)) return;
+
+      // 用户正在创建任务时缓存通知，不打断
+      if (createOpen) {
+        pendingNotificationsRef.current.push(notification);
+        return;
+      }
+
+      // 检查通知是否与当前视图相关
+      const shouldRefresh = ['my_todo', 'future', 'created', 'participated', 'overdue', 'confirming'].includes(scope);
+      if (shouldRefresh) {
+        loadData();
+      }
+    };
+
+    // 添加监听器
+    const removeMessageListener = wsConnection.addMessageListener(handleTaskNotification);
+
+    // 启动连接
+    wsConnection.connect();
+
+    return () => {
+      removeMessageListener();
+    };
+  }, [createOpen, scope, loadData]);
+
+  // 处理缓存的通知：用户完成创建任务后
+  useEffect(() => {
+    if (!createOpen && pendingNotificationsRef.current.length > 0) {
+      pendingNotificationsRef.current = [];
+      loadData();
+    }
+  }, [createOpen, loadData]);
 
   const selectTaskScope = useCallback((nextScope) => {
     setWorkspaceMode('tasks');

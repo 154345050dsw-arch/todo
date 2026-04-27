@@ -32,6 +32,7 @@ export function FlowSummary({
       cancel_pending: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300',
       cancelled: 'border-stone-200 bg-stone-50 text-stone-600 dark:border-stone-500/20 dark:bg-stone-500/10 dark:text-stone-300',
       overdue: 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300',
+      rework: 'border-orange-200 bg-orange-50 text-orange-700 dark:border-orange-500/20 dark:bg-orange-500/10 dark:text-orange-300',
     }),
     [completedStatusTone, flowPendingStatusTone]
   );
@@ -206,28 +207,39 @@ function flowActionMeta(record, status, fromUser, toUser, { displayUser, statusL
   const raw = String(record?.action_text || record?.action || record?.note || record?.label || record?.event_type || '').trim();
   const lower = raw.toLowerCase();
   const transfer = fromUser && toUser && !sameFlowUser(fromUser, toUser, displayUser);
+  const transferText = transfer ? `由 ${displayUser(fromUser)} 转给 ${displayUser(toUser)}` : '';
 
   if (record?.event_type === 'remind' || raw.includes('催办')) {
     const confirm = raw.includes('确认');
     return { label: confirm ? '催确认' : '催办处理', edgeLabel: confirm ? '催确认' : '催办', known: true, raw };
   }
+  if (record?.event_type === 'rework' || raw.includes('重办')) {
+    return { label: '重办任务', edgeLabel: '重办', known: true, raw };
+  }
   if (record?.event_type === 'created' || lower.includes('create') || raw.includes('创建')) {
     return { label: '创建任务', edgeLabel: '创建任务', known: true };
   }
-  if (transfer || lower.includes('transfer') || raw.includes('转派')) {
-    return { label: '转派任务', edgeLabel: '转派', known: true };
+  // 发起取消：显示发起取消 + 系统转派信息
+  if (status === 'cancel_pending' || lower.includes('apply_cancel') || raw.includes('申请取消') || raw.includes('发起取消')) {
+    return { label: '发起取消', edgeLabel: '发起取消', known: true, transferText };
+  }
+  // 拒绝取消：显示拒绝取消 + 系统转派信息（还给原处理人）
+  if (lower.includes('reject_cancel') || raw.includes('拒绝取消')) {
+    return { label: '拒绝取消', edgeLabel: '拒绝取消', known: true, transferText };
+  }
+  if (status === 'cancelled' || lower.includes('confirm_cancel') || raw.includes('确认取消')) {
+    return { label: '确认取消', edgeLabel: '确认取消', known: true };
   }
   if (status === 'confirming' || lower.includes('confirm_complete') || raw.includes('提交确认') || raw.includes('发起完成')) {
-    return { label: status === 'done' ? '确认完成' : '发起完成确认', edgeLabel: status === 'done' ? '确认完成' : '发起完成确认', known: true };
+    const confirmTransferText = transfer ? `由 ${displayUser(fromUser)} 转给 ${displayUser(toUser)}` : '';
+    return { label: status === 'done' ? '确认完成' : '发起完成确认', edgeLabel: status === 'done' ? '确认完成' : '发起完成确认', known: true, transferText: confirmTransferText };
   }
   if (status === 'done' || lower.includes('complete') || raw.includes('确认完成') || raw.includes('已完成')) {
     return { label: '确认完成', edgeLabel: '确认完成', known: true };
   }
-  if (status === 'cancel_pending' || lower.includes('apply_cancel') || raw.includes('申请取消') || raw.includes('发起取消')) {
-    return { label: '发起取消', edgeLabel: '发起取消', known: true };
-  }
-  if (status === 'cancelled' || lower.includes('confirm_cancel') || raw.includes('确认取消') || raw.includes('取消')) {
-    return { label: '确认取消', edgeLabel: '确认取消', known: true };
+  // 用户主动转派
+  if (transfer || lower.includes('transfer') || raw.includes('转派')) {
+    return { label: '转派任务', edgeLabel: '转派', known: true, transferText };
   }
   if (status === 'in_progress' || lower.includes('start') || lower.includes('claim_task') || raw.includes('开始处理')) {
     return { label: '开始处理', edgeLabel: '开始处理', known: true };
@@ -261,8 +273,14 @@ function buildFlowModel(records = [], task, helpers) {
     const statusLabel = record.title || (status === 'created' ? '创建' : statusLabels[status]) || status;
     const person = flowUser(record) || task?.owner || task?.creator;
     const durationMinutes = flowDurationMinutes(record);
+    const transfer = fromUser && toUser && !sameFlowUser(fromUser, toUser, displayUser);
     const action = flowActionMeta(record, status, fromUser, toUser, { displayUser, statusLabels });
-    const isTransfer = record.event_type === 'owner' || Boolean(fromUser && toUser && !sameFlowUser(fromUser, toUser, displayUser));
+    const rawNote = String(record?.note || record?.action || '').toLowerCase();
+    // 系统转派：发起取消（自动转给确认人/创建人）、提交确认（自动转给确认人）、拒绝取消（还给原处理人）
+    const isSystemTransfer = (record.event_type === 'owner' && status === 'cancel_pending') || (record.event_type === 'owner' && status === 'confirming') || (record.event_type === 'owner' && (rawNote.includes('reject_cancel') || rawNote.includes('拒绝取消')));
+    // 用户主动转派（包括重办，因为重办人由用户选择），但排除认领任务（claim_task，自己认领自己）
+    const isClaimTask = rawNote.includes('claim_task') || rawNote.includes('开始处理') || rawNote.includes('认领');
+    const isUserTransfer = ((record.event_type === 'owner' && !isSystemTransfer && !isClaimTask) || record.event_type === 'rework') && transfer;
 
     return {
       id: record.id || `${record.created_at || 'record'}-${index}`,
@@ -273,7 +291,9 @@ function buildFlowModel(records = [], task, helpers) {
       person,
       fromUser,
       toUser,
-      isTransfer,
+      isTransfer: isUserTransfer,
+      isSystemTransfer,
+      transferText: action.transferText,
       roleLabel: flowRoleLabels[status] || '责任人',
       actionLabel: action.label,
       edgeLabel: action.edgeLabel,
@@ -703,6 +723,8 @@ function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTim
             const edgeOffset = edgeOffsetMap.get(edge.id) || 0;
             const useDashed = dashed || edgeOffset > 0;
             const yOffset = edgeOffset * offsetStep;
+            // 判断是否是最后一条边且任务已结束
+            const isTerminalEdge = flow.closed && edge.toId === actorGraph.lastRealNodeId;
 
             if (from.row !== to.row) {
               const startX = fromCenterX;
@@ -711,11 +733,12 @@ function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTim
               const endY = to.y - 10;
               const midY = (startY + endY) / 2;
               const labelGapY = 20;
+              const terminalColor = isTerminalEdge ? '#10b981' : '#cbd5e1';
               return (
                 <g key={edge.id}>
-                  <path d={`M ${startX} ${startY} L ${startX} ${midY - labelGapY}`} fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} />
-                  <path d={`M ${startX} ${midY + labelGapY} L ${startX} ${midY} L ${endX} ${midY} L ${endX} ${endY}`} fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} markerEnd="url(#flow-arrow)" />
-                  <text x={startX + (edgeOffset > 0 ? edgeOffset * 12 : 0)} y={midY - 5 + yOffset} textAnchor="middle" className="fill-slate-500 text-[11px] font-medium dark:fill-slate-400">
+                  <path d={`M ${startX} ${startY} L ${startX} ${midY - labelGapY}`} fill="none" stroke={terminalColor} strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} />
+                  <path d={`M ${startX} ${midY + labelGapY} L ${startX} ${midY} L ${endX} ${midY} L ${endX} ${endY}`} fill="none" stroke={terminalColor} strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} markerEnd={isTerminalEdge ? undefined : "url(#flow-arrow)"} />
+                  <text x={startX + (edgeOffset > 0 ? edgeOffset * 12 : 0)} y={midY - 5 + yOffset} textAnchor="middle" className={`${isTerminalEdge ? 'fill-emerald-600' : 'fill-slate-500'} text-[11px] font-medium dark:fill-slate-400`}>
                     <tspan x={startX + (edgeOffset > 0 ? edgeOffset * 12 : 0)}>{edge.label}</tspan>
                     <tspan x={startX + (edgeOffset > 0 ? edgeOffset * 12 : 0)} dy="13" className="fill-slate-400 text-[10px] font-normal dark:fill-slate-500">
                       {edge.durationText}
@@ -728,7 +751,8 @@ function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTim
             const direction = toCenterX > fromCenterX ? 1 : -1;
             const nonAdjacentReturn = Math.abs(toCenterX - fromCenterX) > nodeWidth + gap + 16;
 
-            if (nonAdjacentReturn) {
+            // 对于结束状态的边，强制使用向下绕行的方式，避免回流视觉效果
+            if (nonAdjacentReturn || isTerminalEdge) {
               const startX = fromCenterX;
               const endX = toCenterX;
               const startY = from.y + nodeHeight + 4 + yOffset;
@@ -736,11 +760,12 @@ function FlowCanvas({ flow, task, onRemind, user, displayUser, formatActivityTim
               const routeY = from.y + nodeHeight + 44 + yOffset;
               const midX = (startX + endX) / 2;
               const safeLabelGap = Math.min(labelGap, Math.max(36, (Math.abs(endX - startX) - 18) / 2));
+              const terminalColor = isTerminalEdge ? '#10b981' : '#cbd5e1';
               return (
                 <g key={edge.id}>
-                  <path d={`M ${startX} ${startY} L ${startX} ${routeY} L ${midX - direction * safeLabelGap} ${routeY}`} fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} />
-                  <path d={`M ${midX + direction * safeLabelGap} ${routeY} L ${endX} ${routeY} L ${endX} ${endY}`} fill="none" stroke="#cbd5e1" strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} markerEnd="url(#flow-arrow)" />
-                  <text x={midX} y={routeY - 5} textAnchor="middle" className="fill-slate-500 text-[11px] font-medium dark:fill-slate-400">
+                  <path d={`M ${startX} ${startY} L ${startX} ${routeY} L ${midX - direction * safeLabelGap} ${routeY}`} fill="none" stroke={terminalColor} strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} />
+                  <path d={`M ${midX + direction * safeLabelGap} ${routeY} L ${endX} ${routeY} L ${endX} ${endY}`} fill="none" stroke={terminalColor} strokeWidth="1.2" strokeDasharray={useDashed ? '6 5' : undefined} markerEnd={isTerminalEdge ? undefined : "url(#flow-arrow)"} />
+                  <text x={midX} y={routeY - 5} textAnchor="middle" className={`${isTerminalEdge ? 'fill-emerald-600' : 'fill-slate-500'} text-[11px] font-medium dark:fill-slate-400`}>
                     <tspan x={midX}>{edge.label}</tspan>
                     <tspan x={midX} dy="13" className="fill-slate-400 text-[10px] font-normal dark:fill-slate-500">
                       {edge.durationText}
@@ -866,9 +891,12 @@ function FlowTimeline({ flow, Badge, badgeClass, displayUser, formatDateTime, fl
   return (
     <div className="rounded-[14px] border border-[var(--app-border)] bg-white p-4 dark:bg-[var(--app-bg)]">
       {flow.items.map((item, index) => {
-        const transferText = item.isTransfer ? `由 ${displayUser(item.record?.actor)} 转派给 ${displayUser(item.toUser)}` : '';
+        // 用户主动转派：显示真实转派
+        const userTransferText = item.isTransfer ? `由 ${displayUser(item.record?.actor)} 转派给 ${displayUser(item.toUser)}` : '';
+        // 系统自动转派：显示系统转派（发起取消、提交确认）
+        const systemTransferText = item.isSystemTransfer && item.transferText ? item.transferText : '';
         const remindText = item.record?.event_type === 'remind' ? item.rawAction || item.note : '';
-        const personText = remindText || transferText || `${item.roleLabel}：${displayUser(item.person) || '-'}`;
+        const personText = remindText || userTransferText || systemTransferText || `${item.roleLabel}：${displayUser(item.person) || '-'}`;
         const quick = item.durationMinutes <= 0;
         const noteText = item.note && item.note !== item.actionLabel && item.note !== item.rawAction ? item.note : '';
 
@@ -881,6 +909,7 @@ function FlowTimeline({ flow, Badge, badgeClass, displayUser, formatDateTime, fl
                 <span className="text-[15px] font-semibold text-[var(--app-text)]">{item.actionKnown ? item.actionLabel : item.statusLabel}</span>
                 <Badge className={badgeClass(flowStatusTone, item.status)}>{item.statusLabel}</Badge>
                 {item.isTransfer && <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600 dark:bg-blue-500/10 dark:text-blue-300">真实转派</span>}
+                {item.isSystemTransfer && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:bg-slate-500/10 dark:text-slate-400">系统转派</span>}
               </div>
               <div className="mt-1.5 text-[13px] text-[var(--app-muted)]">{personText}</div>
               {!item.actionKnown && item.rawAction && <div className="mt-1 text-[12px] text-[var(--app-subtle)]">{item.rawAction}</div>}

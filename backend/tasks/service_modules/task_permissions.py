@@ -11,6 +11,7 @@ class TaskAction:
     COMMENT = "comment"
     CONFIRM_COMPLETE = "confirm_complete"
     CHANGE_STATUS = "change_status"
+    REWORK = "rework"
 
 
 def get_user_roles(user, task):
@@ -36,6 +37,7 @@ def can_perform_action(user, task, action):
         if action in [
             TaskAction.REMIND, TaskAction.CANCEL, TaskAction.TRANSFER,
             TaskAction.CONFIRM_COMPLETE, TaskAction.APPLY_CANCEL, TaskAction.CHANGE_STATUS,
+            TaskAction.REWORK,
         ]:
             return False
 
@@ -59,5 +61,11 @@ def can_perform_action(user, task, action):
             return True
         if action == TaskAction.CONFIRM_COMPLETE and task.status == Task.Status.CONFIRMING:
             return True
+        if action == TaskAction.REWORK and task.status == Task.Status.CONFIRMING:
+            return True
+
+    # creator 在 confirming 状态下也可以重办
+    if action == TaskAction.REWORK and task.status == Task.Status.CONFIRMING and "creator" in roles:
+        return True
 
     return False

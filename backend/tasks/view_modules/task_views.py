@@ -214,6 +214,8 @@ class TaskActionView(APIView):
                     return Response({"detail": "申请取消必须填写原因。"}, status=status.HTTP_400_BAD_REQUEST)
                 task.status = Task.Status.CANCEL_PENDING
                 task.cancel_reason = note
+                # 转给确认人来确认取消，如果没有确认人则转给创建人
+                task.owner = task.confirmer or task.creator
                 create_task_notification(
                     TaskNotification.NotificationType.TASK_CANCEL_REQUESTED,
                     task,
@@ -237,7 +239,15 @@ class TaskActionView(APIView):
                 return Response({"detail": "只有创建人可以拒绝取消。"}, status=status.HTTP_403_FORBIDDEN)
             if task.status != Task.Status.CANCEL_PENDING:
                 return Response({"detail": "任务不在待取消确认状态。"}, status=status.HTTP_400_BAD_REQUEST)
+            # 找到发起取消之前的 owner，还给原来的处理人
+            cancel_event = task.events.filter(
+                event_type=FlowEvent.EventType.OWNER,
+                to_status=Task.Status.CANCEL_PENDING
+            ).order_by("-created_at", "-id").first()
+            if cancel_event and cancel_event.from_owner:
+                task.owner = cancel_event.from_owner
             task.status = Task.Status.IN_PROGRESS
+            note = "拒绝取消，继续执行"
         elif action == "confirm_complete":
             if not can_perform_action(request.user, task, TaskAction.CONFIRM_COMPLETE):
                 return Response({"detail": "只有责任人（处理中）或确认人（待确认）可以确认完成。"}, status=status.HTTP_403_FORBIDDEN)
@@ -299,9 +309,58 @@ class TaskActionView(APIView):
                 request.user,
                 extra={"from_user": display_user(previous_owner) if previous_owner else "待领取"},
             )
+        elif action == "rework":
+            if task.status != Task.Status.CONFIRMING:
+                return Response({"detail": "只有待确认状态的任务可以重办。"}, status=status.HTTP_400_BAD_REQUEST)
+            roles = get_user_roles(request.user, task)
+            if "confirmer" not in roles and "creator" not in roles:
+                return Response({"detail": "只有确认人或创建人可以发起重办。"}, status=status.HTTP_403_FORBIDDEN)
+            rework_reason = data.get("rework_reason")
+            if not rework_reason or not rich_text_has_content(rework_reason):
+                return Response({"detail": "重办原因必填。"}, status=status.HTTP_400_BAD_REQUEST)
+            rework_owner_id = data.get("rework_owner_id")
+            if rework_owner_id:
+                rework_owner = User.objects.filter(id=rework_owner_id).first()
+                if not rework_owner:
+                    return Response({"detail": "指定的重办人不存在。"}, status=status.HTTP_400_BAD_REQUEST)
+            else:
+                # 默认重办人：查找 owner_completed_at 时对应的 owner
+                # 通过 FlowEvent 查找最后一次提交确认前的 owner
+                last_confirm_event = task.events.filter(
+                    event_type=FlowEvent.EventType.STATUS,
+                    to_status=Task.Status.CONFIRMING
+                ).order_by("-created_at", "-id").first()
+                if last_confirm_event and last_confirm_event.from_owner:
+                    rework_owner = last_confirm_event.from_owner
+                else:
+                    rework_owner = task.owner
+            if not rework_owner:
+                return Response({"detail": "无法确定重办人。"}, status=status.HTTP_400_BAD_REQUEST)
+            # 执行重办
+            previous = {"status": task.status, "owner": task.owner}
+            task.owner = rework_owner
+            task.status = Task.Status.TODO
+            task.rework_count += 1
+            task.rework_reason = sanitize_rich_text(rework_reason)
+            task.rework_by = request.user
+            task.rework_at = timezone.now()
+            task.owner_completed_at = None
+            # 保留 completion_note，便于重办人参考
+            create_task_notification(
+                TaskNotification.NotificationType.TASK_REWORKED,
+                task,
+                request.user,
+                receiver=rework_owner,
+            )
+            note = f"重办任务，原因：{task.rework_reason[:100]}"
 
         task.save()
-        create_flow_event(task, request.user, FlowEvent.EventType.OWNER, note=note or "转派", previous=previous)
+        # 负责人变更：转派、认领、发起取消（转给确认人）、拒绝取消（还给原处理人）
+        is_owner_change = action in ["transfer", "claim_task", "reject_cancel"] or (action == "cancel" and task.status == Task.Status.CANCEL_PENDING)
+        event_type = FlowEvent.EventType.OWNER if is_owner_change else FlowEvent.EventType.STATUS
+        if action == "rework":
+            event_type = FlowEvent.EventType.REWORK
+        create_flow_event(task, request.user, event_type, note=note or action, previous=previous)
         return Response(TaskDetailSerializer(task, context={"request": request}).data)
 
 

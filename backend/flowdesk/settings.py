@@ -20,6 +20,7 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
+    "channels",
     "tasks",
 ]
 
@@ -53,6 +54,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = "flowdesk.wsgi.application"
+ASGI_APPLICATION = "flowdesk.asgi.application"
 
 DATABASES = {
     "default": {
@@ -93,4 +95,13 @@ CORS_ALLOW_ALL_ORIGINS = DEBUG
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.TokenAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"],
+}
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [(os.getenv("REDIS_HOST", "127.0.0.1"), int(os.getenv("REDIS_PORT", "6379")))],
+        },
+    },
 }
