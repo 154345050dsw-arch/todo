@@ -46,26 +46,36 @@ python manage.py test tasks.tests.TaskVisibilityTests.test_unrelated_user_cannot
 
 ### Backend (Django REST Framework)
 - **Authentication**: Token-based via `rest_framework.authtoken`
+- **Modular structure** (`backend/tasks/`):
+  - `service_modules/`: task_visibility, task_permissions, task_flow, task_notifications, rich_text, data_scopes, organization_permissions
+  - `view_modules/`: task_views, auth_views, notification_views, organization_views, statistics_views
+  - `serializer_modules/`: task_serializers, flow_serializers, notification_serializers, common_serializers
+  - Main files (`models.py`, `services.py`, `views.py`, `serializers.py`) aggregate from modules
 - **Core models** (`tasks/models.py`):
   - `Task`: Main entity with status, priority, owner, confirmer, participants, department, `candidate_owners` (for claimable tasks)
   - `FlowEvent`: Tracks all task transitions (status changes, owner transfers, department changes, reminders)
   - `TaskComment`: Task comments
   - `TaskReminder`: Reminder records with rate limiting (30 min window)
   - `TaskNotification`: User notifications linked to tasks
-  - `Department`: Organization units
-  - `UserProfile`: User's default department for task creation
-- **Task visibility** (`tasks/services.py`): `visible_tasks_for(user)` returns only tasks related to the user. All API views must start from this queryset.
+  - `Department`: Organization units with hierarchical support
+  - `UserProfile`: User's default department and role (super_admin, department_manager, member)
+- **Task visibility** (`service_modules/task_visibility.py`): `visible_tasks_for(user)` returns only tasks related to the user. All API views must start from this queryset.
 - **Write permissions**: `writable_task_for(user, task)` restricts modifications to creator, owner, confirmer, or participants
 - **Candidate view**: `is_limited_candidate_view(task, user)` returns True for unclaimed candidate tasks (restricted view, no description)
-- **Rich text sanitization**: `sanitize_rich_text(value)` in services.py strips unsafe HTML tags, allows limited safe tags
-- **Duration analysis**: `duration_analysis(task)` aggregates time spent per owner, department, and status
+- **Rich text sanitization**: `sanitize_rich_text(value)` in `service_modules/rich_text.py` strips unsafe HTML tags
+- **Duration analysis**: `duration_analysis(task)` in `service_modules/task_flow.py` aggregates time spent per owner, department, and status
 - **Task scopes** (`task_scope(queryset, user, scope)`): Filters by scope - `all`, `created`, `participated`, `confirming`, `cancel_pending`, `overdue`, `done`, `cancelled`, `transferred`, `future`, `my_todo`, `today_todo`
+- **Organization permissions** (`service_modules/organization_permissions.py`): Role-based access for managing departments and users
 
-### Frontend (React)
+### Frontend (React + Vite)
 - **Entry**: `src/main.jsx` with `ThemeProvider`
-- **Components**:
-  - `src/App.jsx`: Landing page with marketing content
-  - `src/TaskApp.jsx`: Task management interface (Kanban, detail drawer, dashboard)
+- **Modular structure** (`src/app/`):
+  - `modules/`: Feature modules (tasks, navigation, notifications, organization, statistics)
+  - `shared/`: Shared components (Tooltip, TaskModalPrimitives), services, utils
+- **Main components**:
+  - `src/App.jsx`: Landing page (marketing content)
+  - `src/TaskApp.jsx`: Task management application (imports from modules)
+  - `src/app/modules/tasks/components/`: TaskBoard, TaskDetailDrawer, TaskModals, TaskCreateModal
 - **API client**: `src/api.js` handles authentication token and request/response
 - **Theme**: `src/theme.jsx` provides system/light/dark themes persisted in localStorage
 - **Vite proxy**: `/api` requests proxied to Django backend at `http://127.0.0.1:8000`
