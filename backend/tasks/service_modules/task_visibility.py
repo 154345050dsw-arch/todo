@@ -88,10 +88,11 @@ def task_scope(queryset, user, scope):
     if scope == "cancelled":
         return queryset.filter(status=Task.Status.CANCELLED)
     if scope == "transferred":
+        # 我转派的：actor 是当前用户，且 to_owner 不是当前用户（真正的转派，不包括自己认领）
         transferred_task_ids = FlowEvent.objects.filter(
             actor=user,
             event_type=FlowEvent.EventType.OWNER,
-        ).values_list("task_id", flat=True)
+        ).exclude(to_owner=user).values_list("task_id", flat=True)
         return queryset.filter(id__in=transferred_task_ids).exclude(status__in=[Task.Status.DONE, Task.Status.CANCELLED])
     if scope == "future":
         return schedulable_queryset.filter(Q(due_at__date__gt=today) | Q(due_at__isnull=True))
