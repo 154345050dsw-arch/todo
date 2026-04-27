@@ -47,10 +47,11 @@ class DashboardView(APIView):
         cancel_pending_for_user = tasks.filter(status=Task.Status.CANCEL_PENDING, due_at__date=today, owner=request.user)
         my_todo_count = my_todo_tasks.count() + confirming_for_user.count() + cancel_pending_for_user.count()
 
+        # 我转派的：actor 是当前用户，且 to_owner 不是当前用户（真正的转派，不包括自己认领）
         transferred_ids = FlowEvent.objects.filter(
             actor=request.user,
             event_type=FlowEvent.EventType.OWNER,
-        ).values_list("task_id", flat=True)
+        ).exclude(to_owner=request.user).values_list("task_id", flat=True)
 
         my_done_count = tasks.filter(status=Task.Status.DONE).count()
         if owner_completed_ids:
