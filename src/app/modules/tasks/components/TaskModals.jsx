@@ -280,12 +280,10 @@ export function ReminderModal({
           <button
             onClick={submit}
             disabled={saving || targetList.length === 0}
-            className="h-9 rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition-all hover:bg-amber-700 shadow-md disabled:opacity-50"
+            className="h-9 inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-600 px-5 text-sm font-semibold text-white transition-all hover:bg-amber-700 shadow-md disabled:opacity-50"
           >
-            <span className="flex items-center gap-1.5">
-              <BellRing size={15} />
-              {saving ? '提交中...' : '发送催办'}
-            </span>
+            <BellRing size={15} />
+            {saving ? '提交中...' : '发送催办'}
           </button>
         </div>
       </div>

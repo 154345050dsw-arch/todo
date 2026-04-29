@@ -1,8 +1,9 @@
 from rest_framework import serializers
 
-from ..models import Task
+from ..models import Task, TaskAssignment
 from ..services import (
     can_perform_action,
+    current_assignment_for,
     current_duration_hours,
     duration_analysis,
     get_user_roles,
@@ -39,6 +40,9 @@ class TaskListSerializer(serializers.ModelSerializer):
     can_comment = serializers.SerializerMethodField()
     can_confirm_complete = serializers.SerializerMethodField()
     can_rework = serializers.SerializerMethodField()
+    assignments = serializers.SerializerMethodField()
+    user_assignment = serializers.SerializerMethodField()
+    user_effective_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Task
@@ -48,7 +52,7 @@ class TaskListSerializer(serializers.ModelSerializer):
             "priority_label", "due_at", "current_duration_hours", "processing_duration_hours", "flow_count", "reminder_count",
             "latest_reminder_at", "is_overdue", "can_claim", "is_limited_view", "user_roles",
             "can_remind", "can_cancel", "can_transfer", "can_comment", "can_confirm_complete",
-            "can_rework", "created_at", "updated_at",
+            "can_rework", "assignments", "user_assignment", "user_effective_status", "created_at", "updated_at",
         ]
 
     def get_current_duration_hours(self, obj):
@@ -73,7 +77,12 @@ class TaskListSerializer(serializers.ModelSerializer):
     def get_can_claim(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        return bool(user and user.is_authenticated and obj.owner_id is None and obj.candidate_owners.filter(id=user.id).exists())
+        if not user or not user.is_authenticated or obj.status in [Task.Status.DONE, Task.Status.CANCELLED]:
+            return False
+        assignment = current_assignment_for(obj, user)
+        if assignment:
+            return assignment.status == TaskAssignment.Status.TODO
+        return bool(obj.owner_id is None and obj.candidate_owners.filter(id=user.id).exists())
 
     def get_is_limited_view(self, obj):
         request = self.context.get("request")
@@ -92,8 +101,7 @@ class TaskListSerializer(serializers.ModelSerializer):
     def get_can_cancel(self, obj):
         request = self.context.get("request")
         user = getattr(request, "user", None)
-        roles = get_user_roles(user, obj)
-        return "creator" in roles or "owner" in roles
+        return can_perform_action(user, obj, TaskAction.CANCEL)
 
     def get_can_transfer(self, obj):
         request = self.context.get("request")
@@ -114,6 +122,38 @@ class TaskListSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = getattr(request, "user", None)
         return can_perform_action(user, obj, TaskAction.REWORK)
+
+    def _serialize_assignment(self, assignment):
+        if not assignment:
+            return None
+        return {
+            "id": assignment.id,
+            "assignee": UserSerializer(assignment.assignee).data,
+            "status": assignment.status,
+            "status_label": assignment.get_status_display(),
+            "started_at": assignment.started_at,
+            "completed_at": assignment.completed_at,
+            "completion_note": sanitize_rich_text(assignment.completion_note or ""),
+        }
+
+    def get_assignments(self, obj):
+        assignments = obj.assignments.exclude(status=TaskAssignment.Status.CANCELLED).select_related("assignee")
+        return [self._serialize_assignment(assignment) for assignment in assignments]
+
+    def get_user_assignment(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        return self._serialize_assignment(current_assignment_for(obj, user))
+
+    def get_user_effective_status(self, obj):
+        request = self.context.get("request")
+        user = getattr(request, "user", None)
+        assignment = current_assignment_for(obj, user)
+        if obj.status in [Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CONFIRMING, Task.Status.CANCEL_PENDING]:
+            if assignment and assignment.status == TaskAssignment.Status.DONE and obj.status == Task.Status.CONFIRMING:
+                return TaskAssignment.Status.DONE
+            return obj.status
+        return assignment.status if assignment else obj.status
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
@@ -148,6 +188,25 @@ class TaskDetailSerializer(TaskListSerializer):
 
     def get_processing_duration_hours(self, obj):
         return processing_duration_hours(obj)
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if data.get("is_limited_view"):
+            for key in [
+                "description",
+                "events",
+                "comments",
+                "reminders",
+                "duration_analysis",
+                "cancel_reason",
+                "completion_note",
+                "rework_reason",
+                "rework_by",
+                "rework_at",
+                "owner_completed_at",
+            ]:
+                data.pop(key, None)
+        return data
 
 
 class TaskWriteSerializer(serializers.Serializer):

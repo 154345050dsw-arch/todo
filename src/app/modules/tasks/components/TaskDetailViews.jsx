@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronRight, Clock, Lock, X } from 'lucide-react';
+import TaskFlowTimelineModal from './task-flow/TaskFlowTimelineModal.jsx';
+import { buildTaskFlowGraph } from './task-flow/taskFlowMapper.js';
 
 export function FlowSummary({
   task,
@@ -19,6 +21,10 @@ export function FlowSummary({
     () => buildFlowModel(records, task, { displayUser, statusLabels }),
     [records, task, displayUser, statusLabels]
   );
+  const flowGraph = useMemo(
+    () => buildTaskFlowGraph({ task, records, displayUser, formatDateTime }),
+    [task, records, displayUser, formatDateTime]
+  );
   const flowStatusTone = useMemo(
     () => ({
       created: 'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/20 dark:bg-blue-500/10 dark:text-blue-300',
@@ -35,7 +41,29 @@ export function FlowSummary({
   );
 
   if (!flow.items.length) {
-    return <div className="rounded-[14px] border border-dashed border-[var(--app-border)] bg-white p-4 text-[15px] text-[var(--app-muted)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[var(--app-bg)]">暂无流转记录。</div>;
+    return (
+      <>
+        <div className="flex items-center justify-between gap-4 rounded-[14px] border border-dashed border-[var(--app-border)] bg-white p-4 text-[15px] text-[var(--app-muted)] shadow-[0_10px_24px_rgba(15,23,42,0.04)] dark:bg-[var(--app-bg)]">
+          <span>暂无流转记录。</span>
+          <button
+            type="button"
+            onClick={() => setDetailOpen(true)}
+            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[9px] border border-[var(--app-border)] bg-[var(--app-panel)] px-3 text-[13px] font-medium text-[var(--app-text)] transition-all hover:border-[var(--app-primary)]/30 hover:text-[var(--app-primary)] hover:shadow-[var(--shadow-sm)]"
+          >
+            查看轨迹
+            <ChevronRight size={14} strokeWidth={1.7} />
+          </button>
+        </div>
+        <TaskFlowTimelineModal
+          open={detailOpen}
+          onClose={() => setDetailOpen(false)}
+          task={task}
+          records={records}
+          displayUser={displayUser}
+          formatDateTime={formatDateTime}
+        />
+      </>
+    );
   }
 
   return (
@@ -66,16 +94,18 @@ export function FlowSummary({
             <ChevronRight size={14} strokeWidth={1.7} />
           </button>
         </div>
+        <div className="rounded-[12px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 py-2 text-[13px] leading-6 text-[var(--app-muted)]">
+          {flowGraph.summary}
+        </div>
         <FlowTimeline flow={flow} Badge={Badge} badgeClass={badgeClass} displayUser={displayUser} formatDateTime={formatDateTime} flowStatusTone={flowStatusTone} />
       </div>
 
-      <FlowDetailModal
+      <TaskFlowTimelineModal
         open={detailOpen}
         onClose={() => setDetailOpen(false)}
         task={task}
-        flow={flow}
+        records={records}
         displayUser={displayUser}
-        formatActivityTime={formatActivityTime}
         formatDateTime={formatDateTime}
       />
     </>

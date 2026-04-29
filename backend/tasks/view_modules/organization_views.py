@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from ..models import Department, Task, TaskComment, TaskNotification, TaskReminder, UserProfile, UserRole
+from ..models import Department, FlowEvent, Task, TaskAssignment, TaskComment, TaskNotification, TaskReminder, UserProfile, UserRole
 from ..serializers import DepartmentSerializer, UserSerializer
 from ..services import (
     can_manage_department,
@@ -14,6 +14,7 @@ from ..services import (
     get_managed_department_ids,
     is_department_manager,
     is_super_admin,
+    push_task_update,
 )
 
 
@@ -391,19 +392,23 @@ class UserDeleteView(APIView):
             return Response({"detail": "不能删除自己。"}, status=status.HTTP_400_BAD_REQUEST)
 
         active_tasks = Task.objects.filter(
-            Q(owner=target_user) | Q(confirmer=target_user),
-            status__in=["todo", "in_progress", "confirming"],
-        ).count()
+            Q(creator=target_user)
+            | Q(owner=target_user)
+            | Q(confirmer=target_user)
+            | Q(assignments__assignee=target_user)
+            | Q(candidate_owners=target_user)
+            | Q(participants=target_user)
+        ).distinct().count()
 
         if active_tasks > 0:
             return Response(
-                {"detail": f"该用户还有 {active_tasks} 个未完成任务，请先转移任务后再删除。"},
+                {"detail": f"该用户还有 {active_tasks} 个关联任务，请先转移或移除任务关系后再删除。"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        TaskComment.objects.filter(user=target_user).delete()
-        TaskReminder.objects.filter(sender=target_user).delete()
-        TaskNotification.objects.filter(user=target_user).delete()
+        TaskComment.objects.filter(author=target_user).delete()
+        TaskReminder.objects.filter(Q(from_user=target_user) | Q(to_user=target_user)).delete()
+        TaskNotification.objects.filter(Q(recipient=target_user) | Q(actor=target_user)).delete()
 
         if hasattr(target_user, "managed_departments"):
             target_user.managed_departments.update(manager=None)
@@ -438,23 +443,44 @@ class UserTransferTasksView(APIView):
         if transfer_to_user.id == target_user.id:
             return Response({"detail": "不能转移给自己。"}, status=status.HTTP_400_BAD_REQUEST)
 
+        if not can_manage_user(request.user, transfer_to_user):
+            return Response({"detail": "无权转移任务给该用户。"}, status=status.HTTP_403_FORBIDDEN)
+
         transferred_tasks = []
 
         owner_tasks = Task.objects.filter(owner=target_user)
         for task in owner_tasks:
             old_owner = task.owner
+            previous = {"status": task.status, "owner": task.owner, "department": task.department}
             task.owner = transfer_to_user
-            task.save(update_fields=["owner"])
+            target_department = getattr(getattr(transfer_to_user, "profile", None), "default_department", None)
+            update_fields = ["owner"]
+            if target_department:
+                task.department = target_department
+                update_fields.append("department")
+            task.save(update_fields=update_fields)
+            assignment = TaskAssignment.objects.filter(task=task, assignee=target_user).first()
+            if assignment:
+                if TaskAssignment.objects.filter(task=task, assignee=transfer_to_user).exists():
+                    assignment.delete()
+                else:
+                    assignment.assignee = transfer_to_user
+                    assignment.status = TaskAssignment.Status.TODO
+                    assignment.started_at = None
+                    assignment.completed_at = None
+                    assignment.completion_note = ""
+                    assignment.save(update_fields=["assignee", "status", "started_at", "completed_at", "completion_note", "updated_at"])
+            if transfer_to_user not in task.candidate_owners.all():
+                task.candidate_owners.add(transfer_to_user)
+            task.candidate_owners.remove(target_user)
             create_flow_event(
                 task=task,
                 actor=request.user,
-                event_type="transfer",
-                details={
-                    "old_owner": old_owner.username,
-                    "new_owner": transfer_to_user.username,
-                    "reason": f"用户 {target_user.username} 任务转移",
-                },
+                event_type=FlowEvent.EventType.OWNER,
+                note=f"负责人由 {old_owner.username if old_owner else target_user.username} 转移给 {transfer_to_user.username}",
+                previous=previous,
             )
+            push_task_update(task, request.user, "organization_transfer")
             transferred_tasks.append(task.id)
 
         confirmer_tasks = Task.objects.filter(confirmer=target_user)
@@ -465,13 +491,11 @@ class UserTransferTasksView(APIView):
             create_flow_event(
                 task=task,
                 actor=request.user,
-                event_type="transfer",
-                details={
-                    "old_confirmer": old_confirmer.username if old_confirmer else None,
-                    "new_confirmer": transfer_to_user.username,
-                    "reason": f"用户 {target_user.username} 任务转移",
-                },
+                event_type=FlowEvent.EventType.ACTION,
+                note=f"确认人由 {old_confirmer.username if old_confirmer else '空'} 转移给 {transfer_to_user.username}",
+                previous={"status": task.status, "owner": task.owner, "department": task.department},
             )
+            push_task_update(task, request.user, "organization_transfer")
             transferred_tasks.append(task.id)
 
         candidate_tasks = Task.objects.filter(candidate_owners__in=[target_user])
@@ -479,6 +503,21 @@ class UserTransferTasksView(APIView):
             task.candidate_owners.remove(target_user)
             if transfer_to_user not in task.candidate_owners.all():
                 task.candidate_owners.add(transfer_to_user)
+            assignment = TaskAssignment.objects.filter(task=task, assignee=target_user).first()
+            if assignment:
+                if TaskAssignment.objects.filter(task=task, assignee=transfer_to_user).exists():
+                    assignment.delete()
+                else:
+                    assignment.assignee = transfer_to_user
+                    assignment.save(update_fields=["assignee", "updated_at"])
+            create_flow_event(
+                task=task,
+                actor=request.user,
+                event_type=FlowEvent.EventType.ACTION,
+                note=f"候选负责人由 {target_user.username} 转移给 {transfer_to_user.username}",
+                previous={"status": task.status, "owner": task.owner, "department": task.department},
+            )
+            push_task_update(task, request.user, "organization_transfer")
             transferred_tasks.append(task.id)
 
         return Response(

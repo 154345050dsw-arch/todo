@@ -5,8 +5,8 @@ from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
 
-from .models import Department, FlowEvent, Task, TaskNotification, TaskReminder, UserProfile
-from .services import create_flow_event, duration_analysis, processing_duration_hours, sanitize_rich_text, task_scope, visible_tasks_for
+from .models import Department, FlowEvent, Task, TaskAssignment, TaskComment, TaskNotification, TaskReminder, UserProfile
+from .services import create_flow_event, duration_analysis, processing_duration_hours, sanitize_rich_text, task_realtime_user_ids, task_scope, visible_tasks_for
 
 
 class HealthTests(TestCase):
@@ -40,6 +40,29 @@ class TaskVisibilityTests(TestCase):
     def test_participant_can_see_task(self):
         self.task.participants.add(self.user_b)
         self.assertEqual(visible_tasks_for(self.user_b).count(), 1)
+
+    def test_task_realtime_targets_include_related_and_historical_users(self):
+        user_c = User.objects.create_user(username="c", password="x")
+        UserProfile.objects.create(user=user_c, default_department=self.dept)
+        self.task.candidate_owners.add(self.user_b)
+        self.task.participants.add(user_c)
+        TaskAssignment.objects.create(task=self.task, assignee=self.user_b, status=TaskAssignment.Status.TODO)
+        TaskComment.objects.create(task=self.task, author=user_c, content="关注")
+        TaskReminder.objects.create(
+            task=self.task,
+            from_user=user_c,
+            to_user=self.user_b,
+            remind_type=TaskReminder.RemindType.PROCESS,
+        )
+        create_flow_event(
+            self.task,
+            user_c,
+            FlowEvent.EventType.OWNER,
+            "转派记录",
+            previous={"status": Task.Status.TODO, "owner": self.user_a, "department": self.dept},
+        )
+
+        self.assertTrue({self.user_a.id, self.user_b.id, user_c.id}.issubset(task_realtime_user_ids(self.task)))
 
     def test_duration_analysis_has_owner_status_department(self):
         data = duration_analysis(self.task)
@@ -139,7 +162,7 @@ class TaskVisibilityTests(TestCase):
         self.assertEqual(dashboard_response.status_code, 200)
         self.assertEqual(dashboard_response.data["confirming"], len(expected_ids))
         self.assertEqual(dashboard_response.data["my_todo"], 0)
-        self.assertEqual(dashboard_response.data["created"], 0)
+        self.assertEqual(dashboard_response.data["created"], 1)
 
         list_response = client.get("/api/tasks/", {"scope": "confirming"})
         self.assertEqual(list_response.status_code, 200)
@@ -147,7 +170,7 @@ class TaskVisibilityTests(TestCase):
 
         created_response = client.get("/api/tasks/", {"scope": "created"})
         self.assertEqual(created_response.status_code, 200)
-        self.assertEqual(created_response.data, [])
+        self.assertEqual({task["id"] for task in created_response.data}, {default_creator_confirmation_task.id})
 
     def test_all_scope_returns_only_visible_tasks(self):
         visible_task = Task.objects.create(
@@ -324,6 +347,93 @@ class TaskVisibilityTests(TestCase):
         self.assertEqual(detail_response.data["title"], "候选领取任务")
         self.assertNotIn("description", detail_response.data)
 
+    def test_creator_can_update_task_title_content_and_deadline(self):
+        task = Task.objects.create(
+            title="原任务",
+            description="<p>原内容</p>",
+            creator=self.user_a,
+            owner=self.user_b,
+            department=self.dept,
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        new_due_at = (timezone.now() + timedelta(days=3)).replace(microsecond=0)
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+
+        response = client.patch(
+            f"/api/tasks/{task.id}/",
+            {
+                "title": "更新后的任务",
+                "description": '<p onclick="bad()">更新内容</p><script>alert(1)</script>',
+                "due_at": new_due_at.isoformat(),
+                "note": "更新任务详情",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.title, "更新后的任务")
+        self.assertEqual(task.description, "<p>更新内容</p>")
+        self.assertEqual(task.due_at, new_due_at)
+
+    def test_owner_and_participant_cannot_update_creator_only_task_details(self):
+        owned_task = Task.objects.create(
+            title="负责人不可改详情",
+            description="<p>原内容</p>",
+            creator=self.user_a,
+            owner=self.user_b,
+            department=self.dept,
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        participated_task = Task.objects.create(
+            title="参与人不可改详情",
+            description="<p>原内容</p>",
+            creator=self.user_a,
+            owner=self.user_a,
+            department=self.dept,
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        participated_task.participants.add(self.user_b)
+        client = APIClient()
+        client.force_authenticate(user=self.user_b)
+
+        for task in [owned_task, participated_task]:
+            response = client.patch(
+                f"/api/tasks/{task.id}/",
+                {
+                    "title": "非创建人更新",
+                    "description": "<p>不应保存</p>",
+                    "due_at": (timezone.now() + timedelta(days=5)).isoformat(),
+                },
+                format="json",
+            )
+
+            self.assertEqual(response.status_code, 403)
+            task.refresh_from_db()
+            self.assertNotEqual(task.title, "非创建人更新")
+            self.assertEqual(task.description, "<p>原内容</p>")
+
+    def test_closed_task_detail_fields_are_read_only(self):
+        task = Task.objects.create(
+            title="已完成任务",
+            description="<p>原内容</p>",
+            creator=self.user_a,
+            owner=self.user_a,
+            department=self.dept,
+            status=Task.Status.DONE,
+            completed_at=timezone.now(),
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+
+        response = client.patch(f"/api/tasks/{task.id}/", {"title": "不应更新"}, format="json")
+
+        self.assertEqual(response.status_code, 400)
+        task.refresh_from_db()
+        self.assertEqual(task.title, "已完成任务")
+
     def test_candidate_can_claim_task_once(self):
         task = Task.objects.create(
             title="待处理",
@@ -366,6 +476,82 @@ class TaskVisibilityTests(TestCase):
 
         self.assertEqual(action_response.status_code, 403)
         self.assertEqual(comment_response.status_code, 403)
+
+    def test_limited_candidate_detail_hides_private_records(self):
+        task = Task.objects.create(
+            title="受限详情",
+            description="<p>隐藏内容</p>",
+            creator=self.user_a,
+            status=Task.Status.TODO,
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        task.candidate_owners.add(self.user_b)
+        TaskComment.objects.create(task=task, author=self.user_a, content="内部评论")
+        create_flow_event(task, self.user_a, FlowEvent.EventType.ACTION, "内部流转")
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_b)
+        response = client.get(f"/api/tasks/{task.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["is_limited_view"])
+        self.assertNotIn("description", response.data)
+        self.assertNotIn("comments", response.data)
+        self.assertNotIn("events", response.data)
+        self.assertNotIn("reminders", response.data)
+
+    def test_visible_non_owner_cannot_change_status_or_patch_workflow_fields(self):
+        task = Task.objects.create(
+            title="参与人不可流转",
+            creator=self.user_a,
+            owner=self.user_a,
+            department=self.dept,
+            status=Task.Status.TODO,
+            due_at=timezone.now() + timedelta(days=1),
+        )
+        task.participants.add(self.user_b)
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_b)
+        action_response = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "change_status", "status": Task.Status.IN_PROGRESS},
+            format="json",
+        )
+        patch_response = client.patch(
+            f"/api/tasks/{task.id}/",
+            {"status": Task.Status.DONE, "owner_id": self.user_b.id},
+            format="json",
+        )
+
+        self.assertEqual(action_response.status_code, 403)
+        self.assertEqual(patch_response.status_code, 400)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.TODO)
+        self.assertEqual(task.owner_id, self.user_a.id)
+
+    def test_closed_task_rejects_action_flow(self):
+        task = Task.objects.create(
+            title="关闭后不可流转",
+            creator=self.user_a,
+            owner=self.user_a,
+            department=self.dept,
+            status=Task.Status.DONE,
+            completed_at=timezone.now(),
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+        for payload in [
+            {"action": "cancel", "note": "关闭"},
+            {"action": "transfer", "owner_id": self.user_b.id, "note": "转派"},
+            {"action": "change_status", "status": Task.Status.IN_PROGRESS},
+        ]:
+            response = client.post(f"/api/tasks/{task.id}/actions/", payload, format="json")
+            self.assertEqual(response.status_code, 400)
+
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.DONE)
 
     def test_owner_completion_requires_note_before_separate_confirmation(self):
         task = Task.objects.create(
@@ -431,6 +617,213 @@ class TaskVisibilityTests(TestCase):
         self.assertIsNotNone(task.completed_at)
         self.assertEqual(task.completion_note, "<p>同一人完成</p>")
         self.assertFalse(task.events.filter(to_status=Task.Status.CONFIRMING).exists())
+
+    def test_multi_assignee_task_tracks_each_assignee_completion(self):
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+        create_response = client.post(
+            "/api/tasks/",
+            {
+                "title": "多人协同任务",
+                "description": "<p>多人内容</p>",
+                "candidate_owner_ids": [self.user_a.id, self.user_b.id],
+            },
+            format="json",
+        )
+        self.assertEqual(create_response.status_code, 201)
+        task = Task.objects.get(id=create_response.data["id"])
+        self.assertEqual(task.assignments.count(), 2)
+        self.assertEqual(set(task.assignments.values_list("status", flat=True)), {TaskAssignment.Status.TODO})
+
+        claim_a = client.post(f"/api/tasks/{task.id}/actions/", {"action": "claim_task"}, format="json")
+        self.assertEqual(claim_a.status_code, 200)
+        complete_a = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "confirm_complete", "completion_note": "<p>A完成</p>"},
+            format="json",
+        )
+        self.assertEqual(complete_a.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+        self.assertIsNone(task.owner_id)
+        self.assertEqual(task.assignments.get(assignee=self.user_a).status, TaskAssignment.Status.DONE)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.TODO)
+
+        done_response_a = client.get("/api/tasks/", {"scope": "done"})
+        self.assertEqual(done_response_a.status_code, 200)
+        self.assertEqual({item["id"] for item in done_response_a.data}, {task.id})
+        self.assertEqual(done_response_a.data[0]["user_effective_status"], TaskAssignment.Status.DONE)
+
+        client.force_authenticate(user=self.user_b)
+        todo_response_b = client.get("/api/tasks/", {"scope": "my_todo"})
+        self.assertEqual(todo_response_b.status_code, 200)
+        self.assertEqual({item["id"] for item in todo_response_b.data}, {task.id})
+        self.assertTrue(todo_response_b.data[0]["can_claim"])
+        self.assertEqual(todo_response_b.data[0]["user_effective_status"], TaskAssignment.Status.TODO)
+
+        claim_b = client.post(f"/api/tasks/{task.id}/actions/", {"action": "claim_task"}, format="json")
+        self.assertEqual(claim_b.status_code, 200)
+        complete_b = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "confirm_complete", "completion_note": "<p>B完成</p>"},
+            format="json",
+        )
+        self.assertEqual(complete_b.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.CONFIRMING)
+        self.assertEqual(task.owner_id, self.user_a.id)
+
+        client.force_authenticate(user=self.user_a)
+        confirm_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "confirm_complete"}, format="json")
+        self.assertEqual(confirm_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.DONE)
+        self.assertEqual(set(task.assignments.values_list("status", flat=True)), {TaskAssignment.Status.DONE})
+
+    def test_transfer_moves_current_assignment_without_leaving_old_todo(self):
+        user_c = User.objects.create_user(username="c", password="x")
+        UserProfile.objects.create(user=user_c, default_department=self.dept)
+        task = Task.objects.create(
+            title="多人转派",
+            creator=self.user_a,
+            status=Task.Status.TODO,
+            due_at=timezone.now() + timedelta(hours=2),
+        )
+        task.candidate_owners.set([self.user_a, self.user_b])
+        TaskAssignment.objects.create(task=task, assignee=self.user_a, status=TaskAssignment.Status.TODO)
+        TaskAssignment.objects.create(task=task, assignee=self.user_b, status=TaskAssignment.Status.TODO)
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+        claim_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "claim_task"}, format="json")
+        self.assertEqual(claim_response.status_code, 200)
+        transfer_response = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "transfer", "owner_id": user_c.id, "note": "转给C"},
+            format="json",
+        )
+        self.assertEqual(transfer_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.assignments.get(assignee=self.user_a).status, TaskAssignment.Status.CANCELLED)
+        self.assertEqual(task.assignments.get(assignee=user_c).status, TaskAssignment.Status.TODO)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.TODO)
+
+        client.force_authenticate(user=self.user_a)
+        todo_response_a = client.get("/api/tasks/", {"scope": "my_todo"})
+        self.assertEqual(todo_response_a.status_code, 200)
+        self.assertNotIn(task.id, {item["id"] for item in todo_response_a.data})
+
+        client.force_authenticate(user=user_c)
+        todo_response_c = client.get("/api/tasks/", {"scope": "my_todo"})
+        self.assertEqual(todo_response_c.status_code, 200)
+        self.assertIn(task.id, {item["id"] for item in todo_response_c.data})
+
+    def test_overdue_status_task_can_still_be_completed(self):
+        task = Task.objects.create(
+            title="超时仍可完成",
+            creator=self.user_a,
+            owner=self.user_b,
+            confirmer=self.user_a,
+            department=self.dept,
+            status=Task.Status.OVERDUE,
+            due_at=timezone.now() - timedelta(hours=2),
+        )
+        TaskAssignment.objects.create(
+            task=task,
+            assignee=self.user_b,
+            status=TaskAssignment.Status.IN_PROGRESS,
+            started_at=timezone.now() - timedelta(hours=3),
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_b)
+        response = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "confirm_complete", "completion_note": "<p>补交完成</p>"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.CONFIRMING)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.DONE)
+
+    def test_assignment_cancel_pending_confirm_and_reject_keep_assignments_consistent(self):
+        task = Task.objects.create(
+            title="责任人申请取消",
+            creator=self.user_a,
+            owner=self.user_b,
+            department=self.dept,
+            status=Task.Status.IN_PROGRESS,
+        )
+        TaskAssignment.objects.create(
+            task=task,
+            assignee=self.user_b,
+            status=TaskAssignment.Status.IN_PROGRESS,
+            started_at=timezone.now() - timedelta(hours=1),
+        )
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_b)
+        apply_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "cancel", "note": "无法继续"}, format="json")
+        self.assertEqual(apply_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.CANCEL_PENDING)
+        self.assertEqual(task.owner_id, self.user_a.id)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.IN_PROGRESS)
+
+        client.force_authenticate(user=self.user_a)
+        reject_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "reject_cancel"}, format="json")
+        self.assertEqual(reject_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.IN_PROGRESS)
+        self.assertEqual(task.owner_id, self.user_b.id)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.IN_PROGRESS)
+
+        client.force_authenticate(user=self.user_b)
+        apply_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "cancel", "note": "再次申请"}, format="json")
+        self.assertEqual(apply_response.status_code, 200)
+
+        client.force_authenticate(user=self.user_a)
+        confirm_response = client.post(f"/api/tasks/{task.id}/actions/", {"action": "confirm_cancel"}, format="json")
+        self.assertEqual(confirm_response.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.status, Task.Status.CANCELLED)
+        self.assertEqual(task.assignments.get(assignee=self.user_b).status, TaskAssignment.Status.CANCELLED)
+
+    def test_create_and_transfer_reject_inactive_or_duplicate_users(self):
+        inactive_user = User.objects.create_user(username="inactive", password="x")
+        UserProfile.objects.create(user=inactive_user, default_department=self.dept, is_active=False)
+
+        client = APIClient()
+        client.force_authenticate(user=self.user_a)
+        duplicate_response = client.post(
+            "/api/tasks/",
+            {"title": "重复负责人", "candidate_owner_ids": [self.user_b.id, self.user_b.id]},
+            format="json",
+        )
+        inactive_create_response = client.post(
+            "/api/tasks/",
+            {"title": "停用负责人", "candidate_owner_ids": [inactive_user.id]},
+            format="json",
+        )
+        self.assertEqual(duplicate_response.status_code, 400)
+        self.assertEqual(inactive_create_response.status_code, 400)
+
+        task = Task.objects.create(
+            title="不能转给停用用户",
+            creator=self.user_a,
+            owner=self.user_a,
+            department=self.dept,
+            status=Task.Status.IN_PROGRESS,
+        )
+        TaskAssignment.objects.create(task=task, assignee=self.user_a, status=TaskAssignment.Status.IN_PROGRESS)
+        inactive_transfer_response = client.post(
+            f"/api/tasks/{task.id}/actions/",
+            {"action": "transfer", "owner_id": inactive_user.id, "note": "转派"},
+            format="json",
+        )
+        self.assertEqual(inactive_transfer_response.status_code, 400)
 
     def test_task_reminder_creates_record_event_and_notification_with_rate_limit(self):
         task = Task.objects.create(

@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from tasks.models import Department, FlowEvent, Task, TaskComment, UserProfile
+from tasks.models import Department, FlowEvent, Task, TaskAssignment, TaskComment, UserProfile
 
 
 class Command(BaseCommand):
@@ -73,6 +73,19 @@ class Command(BaseCommand):
             if participants:
                 task.participants.set([users[name] for name in participants])
             task.candidate_owners.set([task.owner])
+            assignment_status = TaskAssignment.Status.DONE if status == Task.Status.DONE else (
+                TaskAssignment.Status.TODO if status == Task.Status.TODO else TaskAssignment.Status.IN_PROGRESS
+            )
+            TaskAssignment.objects.get_or_create(
+                task=task,
+                assignee=task.owner,
+                defaults={
+                    "status": assignment_status,
+                    "started_at": now if assignment_status in [TaskAssignment.Status.IN_PROGRESS, TaskAssignment.Status.DONE] else None,
+                    "completed_at": task.completed_at if assignment_status == TaskAssignment.Status.DONE else None,
+                    "completion_note": task.completion_note if assignment_status == TaskAssignment.Status.DONE else "",
+                },
+            )
             return task
 
         task1 = make_task(

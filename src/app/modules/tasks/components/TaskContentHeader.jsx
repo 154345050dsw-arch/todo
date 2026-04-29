@@ -9,6 +9,59 @@ import {
   Users,
 } from 'lucide-react';
 
+function HeaderControl({ active, icon: Icon, children, onClick }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition-all ${
+        active
+          ? 'border-[var(--app-primary)] bg-[var(--app-primary-soft)] text-[var(--app-primary)] shadow-[var(--shadow-border)]'
+          : 'border-transparent bg-[var(--app-panel-soft)] text-[var(--app-muted)] hover:bg-[var(--app-panel)] hover:text-[var(--app-text)] hover:shadow-[var(--shadow-border)]'
+      }`}
+    >
+      <Icon size={13} strokeWidth={1.6} />
+      <span>{children}</span>
+    </button>
+  );
+}
+
+function SyncIndicator({ syncStatus, lastSyncTime, formatRelativeTime, onRetry }) {
+  if (syncStatus === 'syncing') {
+    return (
+      <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--app-panel-soft)] px-3 text-[12px] font-semibold text-[var(--app-muted)]">
+        <RefreshCw size={12} className="animate-spin" />
+        同步中
+      </span>
+    );
+  }
+
+  if (syncStatus === 'success' && lastSyncTime) {
+    return (
+      <span className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--app-panel-soft)] px-3 text-[12px] font-semibold text-[var(--app-muted)]">
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        已同步 · {formatRelativeTime(lastSyncTime)}
+      </span>
+    );
+  }
+
+  if (syncStatus === 'error') {
+    return (
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex h-8 items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 text-[12px] font-semibold text-red-600 transition-colors hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300"
+      >
+        <AlertTriangle size={12} />
+        同步失败 · 重试
+      </button>
+    );
+  }
+
+  return null;
+}
+
 export default function TaskContentHeader({
   workspaceMode,
   pageInfo,
@@ -26,115 +79,69 @@ export default function TaskContentHeader({
   if (workspaceMode !== 'tasks') return null;
 
   return (
-    <div className="mb-4 flex items-center justify-between">
-      <div>
-        <h1 className="text-lg font-semibold">{pageInfo.title}</h1>
-        <p className="mt-0.5 text-sm text-[var(--app-muted)]">{pageInfo.subtitle}</p>
+    <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-[220px] pt-0.5">
+        <h1 className="text-[18px] font-semibold leading-tight">{pageInfo.title}</h1>
+        <p className="mt-0.5 text-[13px] leading-5 text-[var(--app-muted)]">{pageInfo.subtitle}</p>
       </div>
-      <div className="flex items-center gap-3">
-        {syncStatus === 'syncing' && (
-          <span className="flex items-center gap-1.5 text-sm text-[var(--app-muted)]">
-            <RefreshCw size={12} className="animate-spin" />
-            同步中...
-          </span>
-        )}
-        {syncStatus === 'success' && lastSyncTime && (
-          <span className="flex items-center gap-1.5 text-sm text-[var(--app-muted)]">
-            <span className="size-2 rounded-full bg-green-500" />
-            已同步 · {formatRelativeTime(lastSyncTime)}
-          </span>
-        )}
-        {syncStatus === 'error' && (
-          <button
-            type="button"
-            onClick={onRetry}
-            className="flex items-center gap-1.5 text-sm text-red-500 hover:text-red-600"
-          >
-            <AlertTriangle size={12} />
-            同步失败 · 点击重试
-          </button>
-        )}
-        <div className="flex items-center gap-2">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+        <SyncIndicator
+          syncStatus={syncStatus}
+          lastSyncTime={lastSyncTime}
+          formatRelativeTime={formatRelativeTime}
+          onRetry={onRetry}
+        />
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           {(user?.is_super_admin || user?.is_department_manager) && (
             <>
-              <button
-                type="button"
+              <HeaderControl
+                active={dataScope === 'related'}
+                icon={User}
                 onClick={() => onDataScopeChange('related')}
-                className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-                  dataScope === 'related'
-                    ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                    : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-                }`}
               >
-                <User size={13} />
                 仅我相关
-              </button>
-              <button
-                type="button"
+              </HeaderControl>
+              <HeaderControl
+                active={dataScope === 'my_department'}
+                icon={Building2}
                 onClick={() => onDataScopeChange('my_department')}
-                className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-                  dataScope === 'my_department'
-                    ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                    : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-                }`}
               >
-                <Building2 size={13} />
                 本部门
-              </button>
-              <button
-                type="button"
+              </HeaderControl>
+              <HeaderControl
+                active={dataScope === 'my_department_tree'}
+                icon={Network}
                 onClick={() => onDataScopeChange('my_department_tree')}
-                className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-                  dataScope === 'my_department_tree'
-                    ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                    : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-                }`}
               >
-                <Network size={13} />
                 本部门及下级
-              </button>
+              </HeaderControl>
               {user?.is_super_admin && (
-                <button
-                  type="button"
+                <HeaderControl
+                  active={dataScope === 'all_departments'}
+                  icon={Globe}
                   onClick={() => onDataScopeChange('all_departments')}
-                  className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-                    dataScope === 'all_departments'
-                      ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                      : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-                  }`}
                 >
-                  <Globe size={13} />
                   全部部门
-                </button>
+                </HeaderControl>
               )}
             </>
           )}
-          <button
-            type="button"
+          <HeaderControl
+            active={filters.mineOnly}
+            icon={Users}
             onClick={() => onFiltersChange({ ...filters, mineOnly: !filters.mineOnly })}
-            className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-              filters.mineOnly
-                ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-            }`}
           >
-            <Users size={13} />
             仅我负责
-          </button>
-          <button
-            type="button"
+          </HeaderControl>
+          <HeaderControl
+            active={filters.sortDue}
+            icon={Calendar}
             onClick={() => onFiltersChange({ ...filters, sortDue: !filters.sortDue })}
-            className={`flex h-8 items-center gap-1.5 rounded-[8px] border px-2.5 text-xs font-medium transition ${
-              filters.sortDue
-                ? 'border-[var(--app-primary)] bg-[var(--app-primary)]/10 text-[var(--app-primary)]'
-                : 'border-[var(--app-border)] text-[var(--app-muted)] hover:border-[var(--app-primary)] hover:text-[var(--app-text)]'
-            }`}
           >
-            <Calendar size={13} />
             到期优先
-          </button>
+          </HeaderControl>
         </div>
-        {error && <span className="text-sm text-red-600">{error}</span>}
+        {error && <span className="inline-flex h-8 items-center rounded-full bg-red-50 px-3 text-[12px] font-semibold text-red-600 dark:bg-red-500/10 dark:text-red-300">{error}</span>}
       </div>
     </div>
   );

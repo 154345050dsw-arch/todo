@@ -165,6 +165,34 @@ class Task(models.Model):
         return f"{self.code} {self.title}"
 
 
+class TaskAssignment(models.Model):
+    class Status(models.TextChoices):
+        TODO = "todo", "待处理"
+        IN_PROGRESS = "in_progress", "处理中"
+        DONE = "done", "已完成"
+        CANCELLED = "cancelled", "已取消"
+
+    task = models.ForeignKey(Task, related_name="assignments", on_delete=models.CASCADE)
+    assignee = models.ForeignKey(User, related_name="task_assignments", on_delete=models.CASCADE)
+    status = models.CharField(max_length=24, choices=Status.choices, default=Status.TODO)
+    started_at = models.DateTimeField(null=True, blank=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    completion_note = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]
+        unique_together = ("task", "assignee")
+        indexes = [
+            models.Index(fields=["task", "status"]),
+            models.Index(fields=["assignee", "status"]),
+        ]
+
+    def __str__(self):
+        return f"{self.task_id} -> {self.assignee_id} {self.status}"
+
+
 class FlowEvent(models.Model):
     class EventType(models.TextChoices):
         CREATED = "created", "创建"

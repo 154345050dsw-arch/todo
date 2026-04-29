@@ -29,7 +29,9 @@ export default {
         line: '#e6e3dc',
         teal: '#007f73',
         coral: '#e05a47',
-        amber: '#b98213',
+        amber: {
+          DEFAULT: '#b98213',
+        },
         violet: '#6a5acd',
         // 温暖灰调色板
         stone: {
@@ -44,6 +46,26 @@ export default {
           800: '#292524',
           900: '#1c1917',
         },
+        // shadcn/ui semantic colors
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        card: 'hsl(var(--card))',
+        'card-foreground': 'hsl(var(--card-foreground))',
+        popover: 'hsl(var(--popover))',
+        'popover-foreground': 'hsl(var(--popover-foreground))',
+        primary: 'hsl(var(--primary))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
+        secondary: 'hsl(var(--secondary))',
+        'secondary-foreground': 'hsl(var(--secondary-foreground))',
+        muted: 'hsl(var(--muted))',
+        'muted-foreground': 'hsl(var(--muted-foreground))',
+        accent: 'hsl(var(--accent))',
+        'accent-foreground': 'hsl(var(--accent-foreground))',
+        destructive: 'hsl(var(--destructive))',
+        'destructive-foreground': 'hsl(var(--destructive-foreground))',
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
       },
       spacing: {
         '4.5': '1.125rem',  // 18px

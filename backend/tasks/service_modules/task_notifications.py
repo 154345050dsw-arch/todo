@@ -5,7 +5,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.utils import timezone
 
-from ..models import FlowEvent, Task, TaskNotification, TaskReminder
+from ..models import FlowEvent, Task, TaskAssignment, TaskNotification, TaskReminder
 from .task_flow import create_flow_event, display_user, format_duration_text
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,59 @@ def push_notification_to_user(notification):
     except Exception as exc:
         # Redis 不可用时静默失败，不影响通知创建
         logger.warning("Failed to push notification via WebSocket: %s", exc)
+
+
+def task_realtime_user_ids(task):
+    user_ids = {
+        task.creator_id,
+        task.owner_id,
+        task.confirmer_id,
+    }
+    user_ids.update(task.candidate_owners.values_list("id", flat=True))
+    user_ids.update(task.participants.values_list("id", flat=True))
+    user_ids.update(task.assignments.values_list("assignee_id", flat=True))
+    user_ids.update(task.comments.values_list("author_id", flat=True))
+    user_ids.update(task.events.values_list("actor_id", flat=True))
+    user_ids.update(task.events.values_list("from_owner_id", flat=True))
+    user_ids.update(task.events.values_list("to_owner_id", flat=True))
+    for from_user_id, to_user_id in task.reminders.values_list("from_user_id", "to_user_id"):
+        user_ids.add(from_user_id)
+        user_ids.add(to_user_id)
+    return {user_id for user_id in user_ids if user_id}
+
+
+def push_task_update(task, actor=None, action="updated", user_ids=None, include_actor=False):
+    """Push a lightweight task-change signal without creating a notification row."""
+    try:
+        channel_layer = get_channel_layer()
+        if channel_layer is None:
+            logger.warning("Channel layer is not configured")
+            return
+
+        target_ids = set(user_ids or task_realtime_user_ids(task))
+        if actor and not include_actor:
+            target_ids.discard(actor.id)
+        if not target_ids:
+            return
+
+        data = json.loads(json.dumps({
+            "kind": "task_update",
+            "task_id": task.id,
+            "action": action,
+            "actor_id": getattr(actor, "id", None),
+            "updated_at": task.updated_at,
+        }, default=str))
+        for user_id in target_ids:
+            async_to_sync(channel_layer.group_send)(
+                f"notifications_{user_id}",
+                {
+                    "type": "notification_message",
+                    "data": data,
+                },
+            )
+    except Exception as exc:
+        logger.warning("Failed to push task update via WebSocket: %s", exc)
+
 
 NOTIFICATION_CONFIGS = {
     TaskNotification.NotificationType.TASK_CREATED: {
@@ -100,7 +153,13 @@ def current_reminder_target(task):
     if task.status == Task.Status.CONFIRMING:
         return [task.confirmer or task.creator]
     if task.status == Task.Status.CANCEL_PENDING:
-        return [task.creator]
+        return [task.confirmer or task.creator]
+    assignment_targets = list(
+        task.assignments.filter(status__in=[TaskAssignment.Status.IN_PROGRESS, TaskAssignment.Status.TODO])
+        .select_related("assignee")
+    )
+    if assignment_targets:
+        return [assignment.assignee for assignment in assignment_targets]
     if task.owner_id:
         return [task.owner]
     return list(task.candidate_owners.all())

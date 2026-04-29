@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export function Tooltip({ content, children }) {
+export function Tooltip({ content, children, className = 'inline-block' }) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const triggerRef = useRef(null);
@@ -23,7 +23,7 @@ export function Tooltip({ content, children }) {
         ref={triggerRef}
         onMouseEnter={() => setVisible(true)}
         onMouseLeave={() => setVisible(false)}
-        className="inline-block"
+        className={className}
       >
         {children}
       </div>

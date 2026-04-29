@@ -58,6 +58,7 @@ import TaskDetailDrawer from './app/modules/tasks/components/TaskDetailDrawer.js
 import TaskContentHeader from './app/modules/tasks/components/TaskContentHeader.jsx';
 import { Badge, badgeClass } from './app/shared/components/Badge.jsx';
 import { Tooltip } from './app/shared/components/Tooltip.jsx';
+import LoginPage from './app/modules/auth/components/LoginPage.jsx';
 import { useTasks } from './app/modules/tasks/hooks/useTasks.js';
 import {
   buildCalendarCells,
@@ -168,207 +169,10 @@ export default function TaskApp() {
   }
 
   if (!user) {
-    return <AuthScreen onAuthed={setUser} />;
+    return <LoginPage onAuthed={setUser} />;
   }
 
   return <Workspace user={user} onLogout={() => { setToken(null); setUser(null); }} />;
-}
-
-function AuthScreen({ onAuthed }) {
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const desktop = isDesktopApp();
-  const [apiBaseUrl, setApiBaseUrlState] = useState(() => getApiBaseUrl());
-  const [serverOpen, setServerOpen] = useState(() => desktop && !getApiBaseUrl());
-  const [serverForm, setServerForm] = useState(() => getApiBaseUrl());
-  const [serverError, setServerError] = useState('');
-  const [serverMessage, setServerMessage] = useState('');
-  const [serverTesting, setServerTesting] = useState(false);
-  const { theme, setTheme } = useTheme();
-  const apiConfigured = !desktop || Boolean(apiBaseUrl);
-
-  function validateServerForm() {
-    const normalized = normalizeApiBase(serverForm);
-    if (!normalized) {
-      return { error: '请输入服务器地址。' };
-    }
-    if (!isValidApiBaseUrl(normalized)) {
-      return { error: '服务器地址必须以 http:// 或 https:// 开头。' };
-    }
-    return { normalized };
-  }
-
-  function saveServer() {
-    const result = validateServerForm();
-    setServerMessage('');
-    if (result.error) {
-      setServerError(result.error);
-      return;
-    }
-    const saved = setApiBaseUrl(result.normalized);
-    setApiBaseUrlState(saved);
-    setServerForm(saved);
-    setServerError('');
-    setServerMessage('服务器地址已保存。');
-    setError('');
-  }
-
-  async function testServer() {
-    const result = validateServerForm();
-    setServerMessage('');
-    if (result.error) {
-      setServerError(result.error);
-      return;
-    }
-
-    setServerTesting(true);
-    setServerError('');
-    try {
-      await api.health(result.normalized);
-      setServerForm(result.normalized);
-      setServerMessage('连接成功，可以保存并登录。');
-    } catch (err) {
-      setServerError(err.message);
-    } finally {
-      setServerTesting(false);
-    }
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-    if (!apiConfigured) {
-      setError('请先配置服务器地址。');
-      setServerOpen(true);
-      return;
-    }
-    setLoading(true);
-    setError('');
-    try {
-      const data = await api.login(form);
-      setToken(data.token);
-      onAuthed(data.user);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <div className="min-h-screen bg-[var(--app-bg)] px-5 py-8 text-[var(--app-text)]">
-      <div className="mx-auto flex max-w-5xl items-center justify-between">
-        <a href="/" className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-[12px] bg-[var(--app-text)] text-sm font-semibold text-[var(--app-panel)]">F</span>
-          <span className="text-lg font-semibold">FlowDesk</span>
-        </a>
-        <button
-          type="button"
-          onClick={() => setTheme(theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark')}
-          className="grid size-10 place-items-center rounded-[10px] border border-[var(--app-border)] bg-[var(--app-panel)] text-[var(--app-muted)] hover:text-[var(--app-text)]"
-          aria-label="切换主题"
-        >
-          {theme === 'dark' ? <Moon size={16} /> : theme === 'light' ? <Sun size={16} /> : <Globe size={16} />}
-        </button>
-      </div>
-
-      <div className="mx-auto mt-20 grid max-w-5xl gap-8 lg:grid-cols-[1fr_420px] lg:items-center">
-        <div>
-          <p className="text-sm font-semibold text-[var(--app-primary)]">任务流转工作区</p>
-          <h1 className="mt-5 max-w-xl text-5xl font-semibold leading-tight">登录后查看与你相关的任务。</h1>
-          <p className="mt-5 max-w-lg text-base leading-7 text-[var(--app-muted)]">
-            创建人、负责人、参与人、待确认人、评论人和流转操作人都属于相关任务范围。
-          </p>
-        </div>
-
-        <form onSubmit={submit} className="rounded-[14px] border border-[var(--app-border)] bg-[var(--app-panel)] p-6 shadow-[var(--app-shadow)]">
-          {desktop && (
-            <div className="mb-5 border-b border-[var(--app-border)] pb-5">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Server size={16} />
-                    <span>服务器</span>
-                  </div>
-                  <p className={`mt-1 break-all text-xs ${apiBaseUrl ? 'text-[var(--app-muted)]' : 'text-[#c24141] dark:text-[#fca5a5]'}`}>
-                    {apiBaseUrl || '未配置 Django API 服务器地址'}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setServerOpen((value) => !value)}
-                  className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[8px] border border-[var(--app-border)] px-3 text-sm font-medium text-[var(--app-muted)] hover:text-[var(--app-text)]"
-                >
-                  <Settings2 size={15} />
-                  设置
-                </button>
-              </div>
-
-              {serverOpen && (
-                <div className="mt-4 space-y-3">
-                  <label className="block">
-                    <span className="text-sm font-medium">Django API 服务器</span>
-                    <input
-                      value={serverForm}
-                      onChange={(event) => {
-                        setServerForm(event.target.value);
-                        setServerError('');
-                        setServerMessage('');
-                      }}
-                      className="mt-2 h-10 w-full rounded-[8px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 text-sm outline-none transition-colors focus:border-[var(--app-primary)] focus:ring-2 focus:ring-[var(--app-primary)]/10"
-                      placeholder="例如：https://flowdesk.example.com"
-                    />
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={saveServer}
-                      className="h-9 rounded-[8px] bg-[var(--app-text)] px-3 text-sm font-medium text-[var(--app-panel)]"
-                    >
-                      保存
-                    </button>
-                    <button
-                      type="button"
-                      onClick={testServer}
-                      disabled={serverTesting}
-                      className="h-9 rounded-[8px] border border-[var(--app-border)] px-3 text-sm font-medium text-[var(--app-muted)] hover:text-[var(--app-text)] disabled:opacity-60"
-                    >
-                      {serverTesting ? '测试中...' : '测试连接'}
-                    </button>
-                  </div>
-                  {serverError && <p className="text-sm text-[#c24141] dark:text-[#fca5a5]">{serverError}</p>}
-                  {serverMessage && <p className="text-sm text-emerald-600 dark:text-emerald-400">{serverMessage}</p>}
-                  {!apiBaseUrl && <p className="text-xs text-[var(--app-muted)]">桌面端需要先配置集中部署的 Django API 地址。</p>}
-                </div>
-              )}
-            </div>
-          )}
-
-          <label className="mb-4 block">
-            <span className="text-sm font-medium">用户名</span>
-            <input
-              value={form.username}
-              onChange={(event) => setForm({ ...form, username: event.target.value })}
-              className="mt-2 h-11 w-full rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 outline-none focus:border-[var(--app-primary)]"
-            />
-          </label>
-          <label className="mb-4 block">
-            <span className="text-sm font-medium">密码</span>
-            <input
-              type="password"
-              value={form.password}
-              onChange={(event) => setForm({ ...form, password: event.target.value })}
-              className="mt-2 h-11 w-full rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] px-3 outline-none focus:border-[var(--app-primary)]"
-            />
-          </label>
-          {error && <div className="mb-4 rounded-[10px] border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950 dark:text-red-200">{error}</div>}
-          <button disabled={loading || !apiConfigured} className="h-10 w-full rounded-[8px] bg-[var(--app-primary)] text-sm font-semibold text-white transition-colors disabled:opacity-60 hover:bg-[var(--app-primary-strong)]">
-            {!apiConfigured ? '先配置服务器' : loading ? '登录中...' : '登录'}
-          </button>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 function Workspace({ user, onLogout }) {
@@ -378,7 +182,19 @@ function Workspace({ user, onLogout }) {
   const [notificationToasts, setNotificationToasts] = useState([]);
   const [toast, setToast] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [dataScope, setDataScope] = useState('related'); // 数据范围：related/my_department/my_department_tree/all_departments
+  const [dataScope, setDataScope] = useState(() => {
+    if (user?.is_super_admin) return 'all_departments';
+    if (user?.is_department_manager) return 'my_department_tree';
+    return 'related';
+  }); // 数据范围：related/my_department/my_department_tree/all_departments
+  const [detailSurfaceMode, setDetailSurfaceMode] = useState(() => {
+    try {
+      const stored = localStorage.getItem('flowdesk_detail_surface_mode');
+      return stored === 'modal' || stored === 'side' ? stored : 'side';
+    } catch {
+      return 'side';
+    }
+  });
   const { theme, setTheme } = useTheme();
   const {
     activityError,
@@ -446,6 +262,7 @@ function Workspace({ user, onLogout }) {
   } = useTasks({
     user,
     workspaceMode,
+    dataScope,
     setWorkspaceMode,
     loadDailyActivity,
     setDashboard,
@@ -532,6 +349,13 @@ function Workspace({ user, onLogout }) {
     ? { title: '', subtitle: '' }
     : scopeInfo;
 
+  const updateDetailSurfaceMode = useCallback((mode) => {
+    setDetailSurfaceMode(mode);
+    try {
+      localStorage.setItem('flowdesk_detail_surface_mode', mode);
+    } catch {}
+  }, []);
+
   return (
     <div className="h-screen overflow-hidden bg-[var(--app-bg)] text-[var(--app-text)]">
       <div className="grid h-full grid-cols-[280px_minmax(0,1fr)]">
@@ -547,7 +371,7 @@ function Workspace({ user, onLogout }) {
         />
 
         {/* Main Content Area */}
-        <main className={`relative min-w-0 flex flex-col overflow-hidden transition-all duration-300 ${drawerOpen ? 'mr-[min(540px,42vw)]' : ''}`}>
+        <main className={`relative min-w-0 flex flex-col overflow-hidden transition-all duration-300 ${drawerOpen && detailSurfaceMode === 'side' ? 'mr-[min(clamp(640px,58vw,860px),calc(100vw-300px))]' : ''}`}>
           <WorkspaceTopBar
             onSearchOpen={openSearch}
             notificationsOpen={notificationsOpen}
@@ -585,7 +409,7 @@ function Workspace({ user, onLogout }) {
           {/* Content Section - Kanban Only */}
           <section className={`relative flex-1 flex flex-col overflow-hidden p-5`}>
             {/* Click away to close drawer - only covers empty space */}
-            {drawerOpen && (
+            {drawerOpen && detailSurfaceMode === 'side' && (
               <div
                 className="absolute inset-0 z-0 cursor-pointer"
                 onClick={() => setDrawerOpen(false)}
@@ -666,6 +490,8 @@ function Workspace({ user, onLogout }) {
             <TaskDetailDrawer
               task={detail}
               open={drawerOpen}
+              surfaceMode={detailSurfaceMode}
+              onSurfaceModeChange={updateDetailSurfaceMode}
               meta={meta}
               user={user}
               onClose={() => setDrawerOpen(false)}

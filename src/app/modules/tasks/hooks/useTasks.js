@@ -7,6 +7,7 @@ import { canRemindTask, scopeForTask } from '../utils/taskUtils.js';
 export function useTasks({
   user,
   workspaceMode,
+  dataScope,
   setWorkspaceMode,
   loadDailyActivity,
   setDashboard,
@@ -37,6 +38,7 @@ export function useTasks({
   const dataRequestRef = useRef(0);
   const createButtonRef = useRef(null);
   const pendingNotificationsRef = useRef([]);
+  const realtimeRefreshTimerRef = useRef(null);
 
   const loadData = useCallback(async () => {
     const requestId = dataRequestRef.current + 1;
@@ -44,56 +46,90 @@ export function useTasks({
     const requestedScope = scope;
     setSyncStatus('syncing');
     setError('');
+    const secondaryData = Promise.all([
+      api.dashboard({ data_scope: dataScope || 'related' }),
+      api.meta(),
+      api.notifications({ limit: 20 }),
+    ])
+      .then(([dashboardData, metaData, notificationsData]) => ({ dashboardData, metaData, notificationsData }))
+      .catch((secondaryError) => ({ secondaryError }));
+
     try {
-      const [dashboardData, tasksData, metaData, notificationsData] = await Promise.all([
-        api.dashboard(),
-        api.tasks({
-          scope: requestedScope,
-          mine_only: filters.mineOnly ? '1' : '',
-          sort: filters.sortDue ? 'due_at' : '',
-        }),
-        api.meta(),
-        api.notifications({ limit: 20 }),
-      ]);
+      const tasksData = await api.tasks({
+        scope: requestedScope,
+        data_scope: dataScope || 'related',
+        mine_only: filters.mineOnly ? '1' : '',
+        sort: filters.sortDue ? 'due_at' : '',
+      });
       if (dataRequestRef.current !== requestId) return;
-      setDashboard(dashboardData);
       setTasks(tasksData);
       setTasksScope(requestedScope);
-      setMeta(metaData);
-      setNotifications(notificationsData);
       setLastSyncTime(new Date());
       setSyncStatus('success');
+
+      const secondaryResult = await secondaryData;
+      if (dataRequestRef.current !== requestId) return;
+      if (secondaryResult.secondaryError) {
+        setError(secondaryResult.secondaryError.message);
+        return;
+      }
+      setDashboard(secondaryResult.dashboardData);
+      setMeta(secondaryResult.metaData);
+      setNotifications(secondaryResult.notificationsData);
     } catch (err) {
       if (dataRequestRef.current !== requestId) return;
       setError(err.message);
       setSyncStatus('error');
     }
-  }, [filters.mineOnly, filters.sortDue, scope, setDashboard, setMeta, setNotifications]);
+  }, [dataScope, filters.mineOnly, filters.sortDue, scope, setDashboard, setMeta, setNotifications]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  const scheduleRealtimeRefresh = useCallback(() => {
+    if (realtimeRefreshTimerRef.current) return;
+    realtimeRefreshTimerRef.current = window.setTimeout(async () => {
+      realtimeRefreshTimerRef.current = null;
+      await loadData();
+      if (workspaceMode === 'overview') {
+        await loadDailyActivity();
+      }
+    }, 400);
+  }, [loadDailyActivity, loadData, workspaceMode]);
+
+  useEffect(() => () => {
+    if (realtimeRefreshTimerRef.current) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+  }, []);
+
+  const hasBlockingSurface = createOpen || drawerOpen || reminderModal.open || searchOpen;
+
   // WebSocket 监听：实时刷新任务列表
   useEffect(() => {
     if (!getToken()) return undefined;
 
-    const handleTaskNotification = (notification) => {
+    const handleTaskNotification = (message) => {
       // 任务相关的通知类型
-      const taskRelatedTypes = ['task_created', 'task_transferred', 'task_reworked', 'task_completed', 'task_cancel_requested'];
-      if (!taskRelatedTypes.includes(notification.notification_type)) return;
+      const taskRelatedTypes = [
+        'task_created',
+        'task_transferred',
+        'task_reworked',
+        'task_completed',
+        'task_cancel_requested',
+        'task_remind',
+      ];
+      const isTaskUpdate = message?.kind === 'task_update' || taskRelatedTypes.includes(message?.notification_type);
+      if (!isTaskUpdate) return;
 
-      // 用户正在创建任务时缓存通知，不打断
-      if (createOpen) {
-        pendingNotificationsRef.current.push(notification);
+      // 用户正在填写表单或查看详情时缓存刷新，不覆盖当前输入和弹窗状态。
+      if (hasBlockingSurface) {
+        pendingNotificationsRef.current.push(message);
         return;
       }
 
-      // 检查通知是否与当前视图相关
-      const shouldRefresh = ['my_todo', 'future', 'created', 'participated', 'overdue', 'confirming'].includes(scope);
-      if (shouldRefresh) {
-        loadData();
-      }
+      scheduleRealtimeRefresh();
     };
 
     // 添加监听器
@@ -105,15 +141,15 @@ export function useTasks({
     return () => {
       removeMessageListener();
     };
-  }, [createOpen, scope, loadData]);
+  }, [hasBlockingSurface, scheduleRealtimeRefresh]);
 
-  // 处理缓存的通知：用户完成创建任务后
+  // 处理缓存的实时刷新：用户关闭新建、详情、搜索或催办弹窗后再同步。
   useEffect(() => {
-    if (!createOpen && pendingNotificationsRef.current.length > 0) {
+    if (!hasBlockingSurface && pendingNotificationsRef.current.length > 0) {
       pendingNotificationsRef.current = [];
-      loadData();
+      scheduleRealtimeRefresh();
     }
-  }, [createOpen, loadData]);
+  }, [hasBlockingSurface, scheduleRealtimeRefresh]);
 
   const selectTaskScope = useCallback((nextScope) => {
     setWorkspaceMode('tasks');
@@ -155,7 +191,7 @@ export function useTasks({
 
     const timeout = window.setTimeout(async () => {
       try {
-        const data = await api.tasks({ scope: 'all', search: query, limit: query ? 30 : 8 });
+        const data = await api.tasks({ scope: 'all', data_scope: dataScope || 'related', search: query, limit: query ? 30 : 8 });
         if (searchRequestRef.current === requestId) {
           setSearchResults(data);
           setActiveSearchIndex(0);
@@ -173,7 +209,7 @@ export function useTasks({
     }, delay);
 
     return () => window.clearTimeout(timeout);
-  }, [searchOpen, searchQuery]);
+  }, [dataScope, searchOpen, searchQuery]);
 
   const openTask = useCallback(async (taskId) => {
     const data = await api.task(taskId);

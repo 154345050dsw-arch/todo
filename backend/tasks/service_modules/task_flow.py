@@ -32,6 +32,8 @@ def event_label(event):
         return "催办"
     if event.event_type == FlowEvent.EventType.CREATED:
         return "创建"
+    if event.event_type == FlowEvent.EventType.REWORK:
+        return "重办"
     if event.from_status and event.from_status != event.to_status:
         return dict(Task.Status.choices).get(event.to_status, event.to_status)
     if event.from_owner_id and event.from_owner_id != event.to_owner_id:

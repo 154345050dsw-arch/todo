@@ -24,6 +24,8 @@ export function useNotifications({
     if (!getToken()) return undefined;
 
     const handleNewNotification = (notification) => {
+      if (notification?.kind === 'task_update' || !notification?.id) return;
+
       // 避免重复显示
       if (shownToastIdsRef.current.has(notification.id)) return;
 

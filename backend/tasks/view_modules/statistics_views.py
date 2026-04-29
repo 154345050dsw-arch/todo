@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from django.contrib.auth.models import User
-from django.db.models import Count, Q
+from django.db.models import Count
 from django.utils import timezone
 from rest_framework import status
 from rest_framework.response import Response
@@ -9,68 +9,55 @@ from rest_framework.views import APIView
 
 from ..models import Department, FlowEvent, Task
 from ..serializers import DepartmentSerializer, TaskNotificationSerializer, UserSerializer
-from ..services import event_label, visible_tasks_for
+from ..services import can_view_data_scope, event_label, get_tasks_for_scope, task_scope, visible_tasks_for
 
 
 class DashboardView(APIView):
     def get(self, request):
-        tasks = visible_tasks_for(request.user)
+        data_scope = request.query_params.get("data_scope", "related")
+        if not can_view_data_scope(request.user, data_scope):
+            return Response({"detail": "无权访问该数据范围。"}, status=status.HTTP_403_FORBIDDEN)
+        tasks = get_tasks_for_scope(
+            request.user,
+            data_scope,
+            {"department_ids": request.query_params.getlist("department_ids")},
+        )
         now = timezone.now()
-        today = timezone.localdate()
         week_start = now - timezone.timedelta(days=7)
 
-        owner_completed_ids = list(
-            tasks.filter(status=Task.Status.CONFIRMING, owner_completed_at__isnull=False)
-            .exclude(owner=request.user)
-            .values_list("id", flat=True)
-        )
+        def scoped_count(scope):
+            return task_scope(tasks, request.user, scope).values("id").distinct().count()
 
-        active_for_owner = tasks.exclude(
-            status__in=[Task.Status.CONFIRMING, Task.Status.DONE, Task.Status.CANCELLED, Task.Status.CANCEL_PENDING]
-        )
-        active_for_creator = (
-            tasks.exclude(status__in=[Task.Status.DONE, Task.Status.CANCELLED])
-            .exclude(id__in=owner_completed_ids)
-            .exclude(status=Task.Status.CONFIRMING, confirmer__isnull=True, creator=request.user)
-        )
-
-        schedulable = active_for_owner.exclude(status=Task.Status.OVERDUE)
-        my_active = schedulable.filter(Q(owner=request.user) | Q(owner__isnull=True, candidate_owners=request.user))
-
-        my_todo_tasks = my_active.filter(due_at__date=today)
-        confirming_for_user = (
-            tasks.filter(status=Task.Status.CONFIRMING)
-            .filter(Q(owner=request.user) | Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user))
-            .filter(due_at__date=today)
-        )
-        # 待取消确认的任务：owner 是当前用户时需要处理
-        cancel_pending_for_user = tasks.filter(status=Task.Status.CANCEL_PENDING, due_at__date=today, owner=request.user)
-        my_todo_count = my_todo_tasks.count() + confirming_for_user.count() + cancel_pending_for_user.count()
-
-        # 我转派的：actor 是当前用户，且 to_owner 不是当前用户（真正的转派，不包括自己认领）
-        transferred_ids = FlowEvent.objects.filter(
-            actor=request.user,
-            event_type=FlowEvent.EventType.OWNER,
-        ).exclude(to_owner=request.user).values_list("task_id", flat=True)
-
-        my_done_count = tasks.filter(status=Task.Status.DONE).count()
-        if owner_completed_ids:
-            my_done_count += len(owner_completed_ids)
+        counts = {
+            scope: scoped_count(scope)
+            for scope in [
+                "my_todo",
+                "future",
+                "confirming",
+                "cancel_pending",
+                "overdue",
+                "done",
+                "cancelled",
+                "created",
+                "participated",
+                "transferred",
+            ]
+        }
 
         return Response(
             {
-                "my_todo": my_todo_count,
-                "future": schedulable.filter(Q(due_at__date__gt=today) | Q(due_at__isnull=True)).count(),
-                "confirming": tasks.filter(status=Task.Status.CONFIRMING).filter(Q(confirmer=request.user) | Q(confirmer__isnull=True, creator=request.user)).count(),
-                "cancel_pending": tasks.filter(status=Task.Status.CANCEL_PENDING).filter(Q(creator=request.user) | Q(confirmer=request.user)).count(),
-                "due_today": my_todo_count,
-                "overdue": active_for_owner.filter(Q(status=Task.Status.OVERDUE) | Q(due_at__date__lt=today)).count(),
-                "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).count(),
-                "done": my_done_count,
-                "cancelled": tasks.filter(status=Task.Status.CANCELLED).count(),
-                "created": active_for_creator.filter(creator=request.user).count(),
-                "participated": active_for_owner.filter(participants=request.user).count(),
-                "transferred": tasks.filter(id__in=transferred_ids).exclude(status__in=[Task.Status.DONE, Task.Status.CANCELLED]).count(),
+                "my_todo": counts["my_todo"],
+                "future": counts["future"],
+                "confirming": counts["confirming"],
+                "cancel_pending": counts["cancel_pending"],
+                "due_today": counts["my_todo"],
+                "overdue": counts["overdue"],
+                "done_week": tasks.filter(status=Task.Status.DONE, completed_at__gte=week_start).values("id").distinct().count(),
+                "done": counts["done"],
+                "cancelled": counts["cancelled"],
+                "created": counts["created"],
+                "participated": counts["participated"],
+                "transferred": counts["transferred"],
             }
         )
 

@@ -21,10 +21,19 @@ export function isTaskClosed(task) {
   return ['done', 'cancelled'].includes(task?.status);
 }
 
+export function taskDisplayStatus(task) {
+  return task?.user_effective_status || task?.status;
+}
+
 export function reminderTargetForTask(task) {
   if (!task || isTaskClosed(task)) return null;
   if (task.status === 'confirming') return confirmationUser(task);
-  if (task.status === 'cancel_pending') return task.creator;
+  if (task.status === 'cancel_pending') return confirmationUser(task);
+  const activeAssignments = (task.assignments || [])
+    .filter((assignment) => ['todo', 'in_progress'].includes(assignment.status))
+    .map((assignment) => assignment.assignee)
+    .filter(Boolean);
+  if (activeAssignments.length > 0) return activeAssignments;
   if (task.owner) return task.owner;
   if (task.candidate_owners?.length > 0) return task.candidate_owners;
   return null;
@@ -78,7 +87,7 @@ export function isTaskOverdue(task) {
 
 export function searchGroupKey(task) {
   if (isTaskOverdue(task)) return 'overdue';
-  return task?.status || 'todo';
+  return taskDisplayStatus(task) || 'todo';
 }
 
 export function groupSearchTasks(tasks) {
@@ -91,12 +100,13 @@ export function groupSearchTasks(tasks) {
 }
 
 export function scopeForTask(task, user, currentScope) {
-  if (task?.status === 'done') return 'done';
-  if (task?.status === 'cancelled') return 'cancelled';
+  const effectiveStatus = taskDisplayStatus(task);
+  if (effectiveStatus === 'done') return 'done';
+  if (effectiveStatus === 'cancelled') return 'cancelled';
   if (task?.status === 'cancel_pending' && sameUser(task.creator, user)) return 'cancel_pending';
   if (task?.status === 'confirming') return isConfirmationUser(task, user) ? 'confirming' : currentScope;
   if (isTaskOverdue(task)) return 'overdue';
-  const needsHandling = task?.can_claim || sameUser(task.owner, user);
+  const needsHandling = task?.can_claim || sameUser(task.owner, user) || ['todo', 'in_progress'].includes(task?.user_assignment?.status);
   if (!isTaskClosed(task) && needsHandling && isTaskDueToday(task)) return 'my_todo';
   if (!isTaskClosed(task) && (isTaskDueAfterToday(task) || !task?.due_at)) return 'future';
   if (!isTaskClosed(task) && sameUser(task.creator, user)) return 'created';

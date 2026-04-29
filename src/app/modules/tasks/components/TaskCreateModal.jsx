@@ -1137,7 +1137,7 @@ export default function TaskCreateModal({ open, meta, currentUser, restoreFocusR
                 required
                 displayUser={displayUser}
               />
-              <p className="text-[13px] leading-5 text-[var(--app-muted)]">默认已选中自己，点击可取消。多人时先进入各自待办，最先开始处理的人会成为实际负责人。</p>
+              <p className="text-[13px] leading-5 text-[var(--app-muted)]">默认已选中自己，点击可取消。多人时分别进入各自待办，按人开始处理和完成。</p>
             </div>
 
             <div className="rounded-[10px] border border-[var(--app-border)] bg-[var(--app-bg)] p-4">

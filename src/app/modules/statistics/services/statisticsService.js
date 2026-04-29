@@ -4,8 +4,8 @@ export const statisticsService = {
   meta() {
     return apiRequest('/api/meta/');
   },
-  dashboard() {
-    return apiRequest('/api/dashboard/');
+  dashboard(params = {}) {
+    return apiRequest(`/api/dashboard/${buildQueryString(params)}`);
   },
   dailyActivity(params = {}) {
     return apiRequest(`/api/stats/daily-activity/${buildQueryString(params)}`);
